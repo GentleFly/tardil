@@ -74,7 +74,8 @@
 #########
 #Journal - files
 #########
-!*.jou
+*.jou
+*.log
 #########
 #Reports
 #########
@@ -89,4 +90,8 @@
 !*.elf
 !*.bmm
 !*.xmp
-
+#########
+#Users
+#########
+.Xil/
+clockInfo.txt
