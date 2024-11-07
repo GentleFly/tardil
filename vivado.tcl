@@ -18,7 +18,8 @@ set files { \
 }
 
 set constraints { \
-  ./clocks.tcl \
+  ./original_clocks.tcl \
+  ./us_clocks.tcl \
 }
 
 foreach f ${files} {

@@ -30,6 +30,7 @@ module top (
     .COMB_DEPTH(30)
   ) i_dp_1 (
     .clk(clk_inv),
+    //.clk(clk),
     .rst(rst),
     .in(interal[0]),
     .out(interal[1])
