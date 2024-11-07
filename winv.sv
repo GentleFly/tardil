@@ -1,5 +1,4 @@
 
-(* dont_touch="true" *)
 module winv (
   input i,
   output o

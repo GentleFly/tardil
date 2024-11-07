@@ -1,5 +1,4 @@
 
-(* dont_touch="true" *)
 module comb_path #(
   parameter DEPTH = 10
 ) (

@@ -1,3 +1,6 @@
+proc rr {} {
+  source ./vivado.tcl
+}
 
 if { [current_design -quiet] != "" } {
   close_design
@@ -10,6 +13,7 @@ set files { \
   ./register.sv \
   ./comb_path.sv \
   ./data_path.sv \
+  ./clocks.sv \
   ./top.sv \
 }
 
@@ -28,6 +32,9 @@ foreach c ${constraints} {
 synth_design \
   -top top \
   -mode out_of_context
+
+# for convert to IS_INVERTED=true on register's clock pin
+opt_design
 
 report_timing_summary \
   -delay_type min_max \

@@ -6,12 +6,13 @@ module top (
   output out
 );
 
-  wire clk;
+  wire clk, clk_inv;
   wire [1:0] interal;
 
-   BUFG BUFG_inst (
-      .O(clk),
-      .I(clock)
+   clocks clocks_inst (
+      .out(clk),
+      .out_inv(clk_inv),
+      .in(clock)
    );
 
   data_path #(
@@ -28,7 +29,7 @@ module top (
     .DATA_DEPTH(1),
     .COMB_DEPTH(30)
   ) i_dp_1 (
-    .clk(clk),
+    .clk(clk_inv),
     .rst(rst),
     .in(interal[0]),
     .out(interal[1])
@@ -45,3 +46,4 @@ module top (
   );
 
 endmodule
+

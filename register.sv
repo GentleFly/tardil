@@ -1,5 +1,4 @@
 
-(* dont_touch="true" *)
 module register (
   input c,
   input r,
@@ -7,7 +6,7 @@ module register (
   output reg q
 );
 
-always @(posedge c) begin
+always @(posedge c or posedge r) begin
   if (r) begin
     q <= 1'b0;
   end else begin
@@ -16,3 +15,4 @@ always @(posedge c) begin
 end
 
 endmodule
+

@@ -1,5 +1,4 @@
 
-(* dont_touch="true" *)
 module data_path #(
   parameter DATA_DEPTH = 10,
   parameter COMB_DEPTH = 100
