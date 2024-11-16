@@ -45,3 +45,5 @@ report_timing_summary \
   -input_pins \
   -name timing_1
 
+write_checkpoint ./syn.dcp -force
+
