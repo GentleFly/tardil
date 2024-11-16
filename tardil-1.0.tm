@@ -107,10 +107,12 @@ proc ::tardil::shift {args} {
     # tardil::shift -allow_create_clock -clock_shift_step 360 i_dp_1/genblk1[0].register_i/q_reg/C
     # tardil::shift -allow_create_clock -clock_shift_step 180 i_dp_2/genblk1[0].register_i/q_reg/C
     #
+    #source ./tardil-1.0.tm; close_design ; read_checkpoint ./syn.dcp ; link_design
     # tardil::shift -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
     # tardil::shift -allow_create_clock -clock_shift_step -180 i_dp_0/genblk1[9].register_i/q_reg/C
     # tardil::shift -allow_create_clock -clock_shift_step 360 i_dp_1/genblk1[0].register_i/q_reg/C
     # tardil::shift -allow_create_clock -clock_shift_step 180 i_dp_2/genblk1[0].register_i/q_reg/C
+    # #tardil::shift -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
     variable prefix
     dbg_puts [info level 0]
 
