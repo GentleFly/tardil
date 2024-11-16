@@ -106,6 +106,11 @@ proc ::tardil::shift {args} {
     # tardil::shift -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
     # tardil::shift -allow_create_clock -clock_shift_step 360 i_dp_1/genblk1[0].register_i/q_reg/C
     # tardil::shift -allow_create_clock -clock_shift_step 180 i_dp_2/genblk1[0].register_i/q_reg/C
+    #
+    # tardil::shift -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
+    # tardil::shift -allow_create_clock -clock_shift_step -180 i_dp_0/genblk1[9].register_i/q_reg/C
+    # tardil::shift -allow_create_clock -clock_shift_step 360 i_dp_1/genblk1[0].register_i/q_reg/C
+    # tardil::shift -allow_create_clock -clock_shift_step 180 i_dp_2/genblk1[0].register_i/q_reg/C
     variable prefix
     dbg_puts [info level 0]
 
@@ -156,7 +161,7 @@ proc ::tardil::shift {args} {
             dbg_puts "Allowed to create clocks, with step $params(clock_shift_step)°"
             dbg_puts "Register clock pin: ${register_clock_pin}"
 
-            set clock_on_pin [get_clocks -of_objects ${register_clock_pin}]
+            set clock_on_pin [get_clocks -of_objects [get_pins ${register_clock_pin}]]
             if {[llength ${clock_on_pin}]>1} {
                 error "Clocks on this ${register_clock_pin} need to be only one!\nOn pin detected clocks: ${clock_on_pin}"
             } else {
@@ -177,35 +182,46 @@ proc ::tardil::shift {args} {
             set target_shifted_clock_name "${orig_clock_name}${clock_postfix}"
             dbg_puts "  Target clock name: ${target_shifted_clock_name}"
 
-            set source_clock_bufg [\
-                get_cell -of_objects [\
-                    get_pins \
-                        -filter {direction==out && is_leaf==true && ref_name==BUFG} \
-                        -of_objects  [\
-                            get_nets -segments -of_objects ${register_clock_pin} \
-                        ]\
-                ]\
-            ]
-            dbg_puts "  Source clock bufg: ${source_clock_bufg}"
+            if {[llength [get_clocks -quiet ${target_shifted_clock_name}]] == 0 } {
+                set source_clock_bufg [\
+                    get_cell -of_objects [\
+                        get_pins \
+                            -filter {direction==out && is_leaf==true && ref_name==BUFG} \
+                            -of_objects  [\
+                                get_nets -segments -of_objects ${register_clock_pin} \
+                            ]\
+                    ]\
+                ]
+                dbg_puts "  Source clock bufg: ${source_clock_bufg}"
 
-            set src_inst [tardil::clone_bufg ${target_shifted_clock_name} ${source_clock_bufg}]
+                set src_inst [tardil::clone_bufg ${target_shifted_clock_name} ${source_clock_bufg}]
 
-            create_generated_clock \
-                -verbose \
-                -name ${target_shifted_clock_name} \
-                -divide_by 1 \
-                -source [get_pins ${src_inst}/I] \
-                [get_pins ${src_inst}/O]
-            dbg_puts "  Created generated clock: ${target_shifted_clock_name}"
+                create_generated_clock \
+                    -verbose \
+                    -name ${target_shifted_clock_name} \
+                    -divide_by 1 \
+                    -source [get_pins ${src_inst}/I] \
+                    [get_pins ${src_inst}/O]
+                dbg_puts "  Created generated clock: ${target_shifted_clock_name}"
 
-            set target_shifted_clock_latency [expr ${orig_clock_period}*($params(clock_shift_step)/360.0)]
-            set_clock_latency \
-                -verbose \
-                -source \
-                -clock [get_clocks ${target_shifted_clock_name}]\
-                ${target_shifted_clock_latency} \
-                [get_pins ${src_inst}/O]
-            dbg_puts "  Added latency for clock: ${target_shifted_clock_latency}"
+                set target_shifted_clock_latency [expr ${orig_clock_period}*($params(clock_shift_step)/360.0)]
+                set_clock_latency \
+                    -verbose \
+                    -source \
+                    -clock [get_clocks ${target_shifted_clock_name}]\
+                    ${target_shifted_clock_latency} \
+                    [get_pins ${src_inst}/O]
+                dbg_puts "  Added latency for clock: ${target_shifted_clock_latency}"
+            } else {
+                set src_inst [\
+                    get_cell -of_objects [\
+                        get_pins \
+                            -filter {direction==out && is_leaf==true && ref_name==BUFG} \
+                            -of_objects [get_clocks ${target_shifted_clock_name}] \
+                    ]\
+                ]
+                dbg_puts "  Target clock bufg: ${src_inst}"
+            }
 
             disconnect_net \
                 -verbose \
@@ -215,7 +231,7 @@ proc ::tardil::shift {args} {
             
             connect_net \
                 -hierarchical \
-                -net [get_nets -segments -of_objects [get_pins ${src_inst}/O]] \
+                -net [get_nets -of_objects [get_pins ${src_inst}/O]] \
                 -objects [list ${register_clock_pin}]
             dbg_puts "  Connected register clock pin for new clock"
 
