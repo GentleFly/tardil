@@ -30,6 +30,7 @@ foreach c ${constraints} {
 }
 
 synth_design \
+  -part xc7k325tffg676-2 \
   -top top \
   -mode out_of_context
 
