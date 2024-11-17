@@ -184,17 +184,26 @@ proc ::tardil::shift {args} {
             set target_shifted_clock_name "${orig_clock_name}${clock_postfix}"
             dbg_puts "  Target clock name: ${target_shifted_clock_name}"
 
-            if {[llength [get_clocks -quiet ${target_shifted_clock_name}]] == 0 } {
-                set source_clock_bufg [\
-                    get_cell -of_objects [\
-                        get_pins \
-                            -filter {direction==out && is_leaf==true && ref_name==BUFG} \
-                            -of_objects  [\
-                                get_nets -segments -of_objects ${register_clock_pin} \
-                            ]\
-                    ]\
+            set source_clock_bufg [\
+                get_cell -of_objects [\
+                get_pins \
+                -filter {direction==out && is_leaf==true && ref_name==BUFG} \
+                -of_objects  [\
+                get_nets -segments -of_objects ${register_clock_pin} \
+                ]\
+                ]\
                 ]
-                dbg_puts "  Source clock bufg: ${source_clock_bufg}"
+            dbg_puts "  Source clock bufg: ${source_clock_bufg}"
+            if { ${current_shifted_clock_name} == "" } {
+                create_generated_clock \
+                    -verbose \
+                    -name "${orig_clock_name}_${prefix}_p0000" \
+                    -divide_by 1 \
+                    -source [get_pins ${source_clock_bufg}/I] \
+                    [get_pins ${source_clock_bufg}/O]
+                dbg_puts "  Created generated clock: \"${orig_clock_name}_${prefix}_p0000\""
+            }
+            if {[llength [get_clocks -quiet ${target_shifted_clock_name}]] == 0 } {
 
                 set src_inst [tardil::clone_bufg ${target_shifted_clock_name} ${source_clock_bufg}]
 
