@@ -29,6 +29,7 @@ foreach c ${constraints} {
   read_xdc -mode out_of_context ${c}
 }
 
+# origin:  -part xc7k325tffg676-2
 synth_design \
   -part xc7k325tffg676-2 \
   -top top \
