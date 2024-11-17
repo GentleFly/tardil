@@ -432,11 +432,6 @@ proc ::tardil::reslove {args} {
     }
     dbg_puts "Parameters resolved"
 
-    set setup_slack [get_property SLACK ${timing_path}]
-    dbg_puts "Setup Slack: ${setup_slack}"
-    set hold_slack [get_property SLACK [get_timing_paths -hold -through [get_pins -of_objects ${timing_path}]]]
-    dbg_puts "Hold Slack: ${hold_slack}"
-
     set startpoint_cell   [get_property PARENT_CELL [get_property STARTPOINT_PIN ${timing_path}]]
     dbg_puts "Start point: ${startpoint_cell}"
     set startpoint_period [get_property PERIOD [get_property STARTPOINT_CLOCK ${timing_path}]]
@@ -471,37 +466,57 @@ proc ::tardil::reslove {args} {
         dbg_puts "        path_cnt: $path_cnt(${tp})"
         set min_slak(${tp})     [get_property SLACK -min $timing_paths(${tp})]
         dbg_puts "        min_slak: $min_slak(${tp})"
-        set slack(${tp})        [get_property SLACK $timing_paths(${tp})]
-        dbg_puts "        slack:    $slack(${tp})"
-        set sum_of_slack(${tp}) [::tcl::mathop::+ {*}$slack(${tp})]
+        set slacks(${tp})        [get_property SLACK $timing_paths(${tp})]
+        dbg_puts "        slack:    $slacks(${tp})"
+        set sum_of_slack(${tp}) [::tcl::mathop::+ {*}$slacks(${tp})]
         dbg_puts "        sum_of_slack: $sum_of_slack(${tp})"
     }
 
-    set setup_timing_paths [get_timing_paths  \
-        -to [get_cells i_dp_1/genblk1[0].register_i/q_reg] \
-        -slack_lesser_than 99999 \
-        -max_paths 99999 \
-        -nworst 9999 \
-        -setup \
-        -filter {CORNER==Slow}
-    ]
-    set count_of_setup_timing_paths [llength ${setup_timing_paths}]
-    set slacks_for_setup_timing_paths [get_property SLACK ${setup_timing_paths}]
-    set min_slack_for_setup_timing_paths [get_property -min SLACK ${setup_timing_paths}]
-    set sum_of_slack_for_setup_timing_paths [::tcl::mathop::+ {*}${slacks_for_setup_timing_paths}]
+    set setup_slack [get_property SLACK ${timing_path}]
+    dbg_puts "Setup Slack: ${setup_slack}"
+    set hold_slack [get_property SLACK [get_timing_paths -hold -through [get_pins -of_objects ${timing_path}]]]
+    dbg_puts "Hold Slack: ${hold_slack}"
 
-    set hold_timing_paths [get_timing_paths  \
-        -to [get_cells i_dp_1/genblk1[0].register_i/q_reg] \
-        -slack_lesser_than 99999 \
-        -max_paths 99999 \
-        -nworst 9999 \
-        -hold \
-        -filter {CORNER==Fast}
-    ]
-    set count_of_hold_timing_paths [llength ${hold_timing_paths}]
-    set slacks_for_hold_timing_paths [get_property SLACK ${hold_timing_paths}]
-    set min_slack_for_hold_timing_paths [get_property -min SLACK ${hold_timing_paths}]
-    set sum_of_slack_for_hold_timing_paths [::tcl::mathop::+ {*}${slacks_for_hold_timing_paths}]
+    if { ${setup_slack} < 0 } {
+        set cnt_step [expr int(abs(${setup_slack})/${startpoint_shift_step}) + 1]
+        for {set i 0} {${i} < ${cnt_step}+1} {incr i} {
+            #set startpoint_shift_cnt [expr 0 - ${i}]
+            set startpoint_shift_cnt ${i}
+            set endpoint_shift_cnt [expr ${cnt_step} - ${i}]
+            dbg_puts "Step for startpoint and step for endpoint: \[${startpoint_shift_cnt} : ${endpoint_shift_cnt}\]"
+
+            set startpoint_shift [expr ${startpoint_shift_cnt}*${startpoint_shift_step}]
+            dbg_puts "    Startpoint shift: ${startpoint_shift}"
+
+            set endpoint_shift [expr ${endpoint_shift_cnt}*${endpoint_shift_step}]
+            dbg_puts "    Endpoint shift: ${endpoint_shift}"
+
+            set startpoint_weight 0
+            foreach tp [array names timing_paths -regexp {.*,to,startpoint$}] {
+                #puts [expr $sum_of_slack(${tp}) - (${startpoint_shift}*$path_cnt(${tp}))]
+                set a [expr $sum_of_slack(${tp}) - (${startpoint_shift}*$path_cnt(${tp}))]
+                set startpoint_weight [expr ${startpoint_weight} + ${a}]
+            }
+
+            set endpoint_weight 0
+            foreach tp [array names timing_paths -regexp {.*,from,endpoint$}] {
+                #puts [expr $sum_of_slack(${tp}) - (${endpoint_shift}*$path_cnt(${tp}))]
+                set a [expr $sum_of_slack(${tp}) - (${endpoint_shift}*$path_cnt(${tp}))]
+                set endpoint_weight [expr ${endpoint_weight} + ${a}]
+            }
+
+            puts "startpoint_weight: ${startpoint_weight}"
+            puts "endpoint_weight: ${endpoint_weight}"
+            puts [expr ${startpoint_weight} + ${endpoint_weight}]
+
+            # TODO ...
+        }
+    }
+    if { ${hold_slack} < 0 } {
+        puts [expr int(abs(${hold_slack})/${startpoint_shift_step}) + 1]
+    }
+
+    #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove [get_timing_paths]
 
     array unset path_cnt
     array unset min_slak
