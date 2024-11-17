@@ -19,7 +19,7 @@ namespace eval tardil {
 
 proc ::tardil::dbg_puts {args} {
     variable debug
-    if { $debug >= [expr [info level]-1] } {
+    if { ${debug} >= [expr [info level]-1] } {
         array set inf [info frame -1]
         #parray inf
         #puts $inf(proc)
@@ -155,6 +155,7 @@ proc ::tardil::shift {args} {
     }
     dbg_puts "Parameters resolved"
     
+
     foreach register_clock_pin ${register_clock_pins} {
         set current_shifted_clock_name ""
         set orig_clock_name ""
@@ -267,7 +268,146 @@ proc ::tardil::shift {args} {
     return
 }
 
+proc ::tardil::summ_slack {args} {
+    dbg_puts [info level 0]
+
+    set options {
+        { "allow_create_clock"       "Allow to create clock, in needed clock not exist"    }
+        { "clock_shift_step.arg" 180 "Clock Shift Step in degree (180, 90, 60, ... ). Default:" }
+    }
+    set usage ": [lindex [info level 0] 0] \[options] <register_clock_pins> \noptions:"
+    array set params [::cmdline::getoptions args ${options} ${usage}]
+    if {[lsearch -regexp ${args} {-.*}] > -1} {
+        return -code error -errorinfo [::cmdline::usage ${options} ${usage}]
+    } else {
+        dbg_puts "Prams: [array get params]"
+    }
+    if { $params(clock_shift_step) >= 0 } {
+        set sign "p"
+        dbg_puts "Detected positive sign for clock shift."
+    } elseif { $params(clock_shift_step) < 0 } {
+        set sign "n"
+        dbg_puts "Detected negative sign for clock shift."
+    }
+    set degree_postfix "${sign}[format %0.4u [expr abs($params(clock_shift_step))]]"
+    dbg_puts "Degree postfix: \"${degree_postfix}\""
+    set clock_postfix "_${prefix}_${degree_postfix}"
+    dbg_puts "Clock postfix: \"${clock_postfix}\""
+
+    set register_clock_pins [get_pins "[lindex ${args} 0]" -filter {IS_CLOCK==true}]
+    set args [lreplace ${args} 0 0]
+    if {[llength ${register_clock_pins}] == 0} {
+        error [::cmdline::usage ${options} ${usage}]
+    } else {
+        dbg_puts "Clock pins:"
+        foreach clock_pin ${register_clock_pins} {
+            dbg_puts "    ${register_clock_pins}"
+        }
+    }
+    if {[llength ${args}] != 0} {
+        dbg_puts "args: ${args}"
+        error [::cmdline::usage ${options} ${usage}]
+    }
+    dbg_puts "Parameters resolved"
+
+    report_timing \
+        -name bob \
+        -to [get_cells i_dp_1/genblk1[0].register_i/q_reg] \
+        -slack_lesser_than 99999 \
+        -max_paths 99999 \
+        -nworst 9999 \
+        -hold
+    get_property SLACK  [get_timing_paths  -to [get_cells i_dp_1/genblk1[0].register_i/q_reg] -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -setup]
+    CORNER Slow
+    CORNER Fast
+    
+    ::tcl::mathop::+ {*}[get_property SLACK \
+        [get_timing_paths  \
+            -to [get_cells i_dp_1/genblk1[0].register_i/q_reg] \
+            -slack_lesser_than 99999 \
+            -max_paths 99999 \
+            -nworst 9999 \
+            -setup \
+            -filter {CORNER==Slow}
+        ] \
+    ]
+
+    ::tcl::mathop::+ {*}[get_property SLACK \
+        [get_timing_paths  \
+            -to [get_cells i_dp_1/genblk1[0].register_i/q_reg] \
+            -slack_lesser_than 99999 \
+            -max_paths 99999 \
+            -nworst 9999 \
+            -hold \
+            -filter {CORNER==Fast}
+        ] \
+    ]
+
+
+    set setup_timing_paths [get_timing_paths  \
+        -to [get_cells i_dp_1/genblk1[0].register_i/q_reg] \
+        -slack_lesser_than 99999 \
+        -max_paths 99999 \
+        -nworst 9999 \
+        -setup \
+        -filter {CORNER==Slow}
+    ]
+    set count_of_setup_timing_paths [llength ${setup_timing_paths}]
+    set slacks_for_setup_timing_paths [get_property SLACK ${setup_timing_paths}]
+    set min_slack_for_setup_timing_paths [get_property -min SLACK ${setup_timing_paths}]
+    set sum_of_slack_for_setup_timing_paths [::tcl::mathop::+ {*}${slacks_for_setup_timing_paths}]
+
+    set hold_timing_paths [get_timing_paths  \
+        -to [get_cells i_dp_1/genblk1[0].register_i/q_reg] \
+        -slack_lesser_than 99999 \
+        -max_paths 99999 \
+        -nworst 9999 \
+        -hold \
+        -filter {CORNER==Fast}
+    ]
+    set count_of_hold_timing_paths [llength ${hold_timing_paths}]
+    set slacks_for_hold_timing_paths [get_property SLACK ${hold_timing_paths}]
+    set min_slack_for_hold_timing_paths [get_property -min SLACK ${hold_timing_paths}]
+    set sum_of_slack_for_hold_timing_paths [::tcl::mathop::+ {*}${slacks_for_hold_timing_paths}]
+
+    array unset params
+    return
+}
+
+proc ::tardil::check_changes_window {timing_path} {
+    if {[llength ${timing_path}] != 1} {
+        error "Error: ::tardil::check_changes_window <timing_path>"
+    } else {
+        dbg_puts "Timing path: ${timing_path}"
+    }
+    if { [get_property DELAY_TYPE ${timing_path}] == "min" } {
+        set timing_path [get_timing_paths -setup -through [get_pins -of_objects ${timing_path}]]
+    }
+
+    set startpoint_cell   [get_property PARENT_CELL [get_property STARTPOINT_PIN ${timing_path}]]
+    set startpoint_period [get_property PERIOD [get_property STARTPOINT_CLOCK ${timing_path}]]
+    dbg_puts "Start point period: ${startpoint_period}"
+
+    set endpoint_cell   [get_property PARENT_CELL [get_property ENDPOINT_PIN   ${timing_path}]]
+    set endpoint_period [get_property PERIOD [get_property ENDPOINT_CLOCK ${timing_path}]]
+    dbg_puts "End point period: ${endpoint_period}"
+
+    set max_delay [get_property DATAPATH_DELAY ${timing_path}]
+    dbg_puts "Max delay: ${max_delay}"
+    set min_delay [get_property DATAPATH_DELAY [get_timing_paths -hold -through [get_pins -of_objects ${timing_path}]]]
+    dbg_puts "Min delay: ${min_delay}"
+
+    set startpoint_changes_window [expr ${max_delay} - ${min_delay}]
+    dbg_puts "Changes window: ${startpoint_changes_window}"
+
+    if { ${startpoint_changes_window} > ${startpoint_period} } {
+        error "Error: Changes window is more than clock period!"
+    }
+    return
+}
+
 proc ::tardil::reslove {args} {
+    variable debug
     dbg_puts [info level 0]
 
     set options {
@@ -276,16 +416,99 @@ proc ::tardil::reslove {args} {
     }
     set usage ": [info level 0] \[options] <timing_path> \noptions:"
     array set params [::cmdline::getoptions args ${options} ${usage}]
-    if {[lsearch -regexp ${args} {-.*}] > -1} {
-        return -code error -errorinfo [::cmdline::usage ${options} ${usage}]
+    if {[lsearch -regexp ${args} {-[a-zA-Z0-9]+}] > -1} {
+        error [::cmdline::usage ${options} ${usage}]
     }
     set timing_path [lindex ${args} 0]
+    dbg_puts "Geted timing path"
+    set args [lreplace ${args} 0 0]
+    if {[llength ${timing_path}] != 1} {
+        error [::cmdline::usage ${options} ${usage}]
+    } else {
+        dbg_puts "Timing path: ${timing_path}"
+    }
     if {[llength ${args}] != 0} {
-        return -code error -errorinfo [::cmdline::usage ${options} ${usage}]
+        error [::cmdline::usage ${options} ${usage}]
+    }
+    dbg_puts "Parameters resolved"
+
+    set setup_slack [get_property SLACK ${timing_path}]
+    dbg_puts "Setup Slack: ${setup_slack}"
+    set hold_slack [get_property SLACK [get_timing_paths -hold -through [get_pins -of_objects ${timing_path}]]]
+    dbg_puts "Hold Slack: ${hold_slack}"
+
+    set startpoint_cell   [get_property PARENT_CELL [get_property STARTPOINT_PIN ${timing_path}]]
+    dbg_puts "Start point: ${startpoint_cell}"
+    set startpoint_period [get_property PERIOD [get_property STARTPOINT_CLOCK ${timing_path}]]
+    dbg_puts "Start point period: ${startpoint_period}"
+    set startpoint_shift_step [expr ${startpoint_period}*($params(clock_shift_step)/360.0)]
+    dbg_puts "Start point shift step: ${startpoint_shift_step}"
+
+    set endpoint_cell   [get_property PARENT_CELL [get_property ENDPOINT_PIN   ${timing_path}]]
+    dbg_puts "End point: ${endpoint_cell}"
+    set endpoint_period [get_property PERIOD [get_property ENDPOINT_CLOCK ${timing_path}]]
+    dbg_puts "End point period: ${endpoint_period}"
+    set endpoint_shift_step [expr ${endpoint_period}*($params(clock_shift_step)/360.0)]
+    dbg_puts "End point shift step: ${startpoint_shift_step}"
+
+    if { ${startpoint_cell} == ${endpoint_cell} } {
+        error "Start cell and end cell is same!"
     }
 
-    #puts $params(clock_shift_step)
+    set timing_paths(setup,to,startpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -to   ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
+    set timing_paths(hold,to,startpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
+    set timing_paths(setup,from,startpoint) [get_timing_paths -setup -filter {CORNER==Slow} -from ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
+    set timing_paths(hold,from,startpoint)  [get_timing_paths -hold  -filter {CORNER==Fast} -from ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
+    set timing_paths(setup,to,endpoint)     [get_timing_paths -setup -filter {CORNER==Slow} -to   ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
+    set timing_paths(hold,to,endpoint)      [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
+    set timing_paths(setup,from,endpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -from ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
+    set timing_paths(hold,from,endpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -from ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
+    dbg_puts "Timing paths: [array get timing_paths]"
 
+    foreach tp [array names timing_paths] {
+        dbg_puts "    Timing path: ${tp}"
+        set path_cnt(${tp})     [llength $timing_paths(${tp})]
+        dbg_puts "        path_cnt: $path_cnt(${tp})"
+        set min_slak(${tp})     [get_property SLACK -min $timing_paths(${tp})]
+        dbg_puts "        min_slak: $min_slak(${tp})"
+        set slack(${tp})        [get_property SLACK $timing_paths(${tp})]
+        dbg_puts "        slack:    $slack(${tp})"
+        set sum_of_slack(${tp}) [::tcl::mathop::+ {*}$slack(${tp})]
+        dbg_puts "        sum_of_slack: $sum_of_slack(${tp})"
+    }
+
+    set setup_timing_paths [get_timing_paths  \
+        -to [get_cells i_dp_1/genblk1[0].register_i/q_reg] \
+        -slack_lesser_than 99999 \
+        -max_paths 99999 \
+        -nworst 9999 \
+        -setup \
+        -filter {CORNER==Slow}
+    ]
+    set count_of_setup_timing_paths [llength ${setup_timing_paths}]
+    set slacks_for_setup_timing_paths [get_property SLACK ${setup_timing_paths}]
+    set min_slack_for_setup_timing_paths [get_property -min SLACK ${setup_timing_paths}]
+    set sum_of_slack_for_setup_timing_paths [::tcl::mathop::+ {*}${slacks_for_setup_timing_paths}]
+
+    set hold_timing_paths [get_timing_paths  \
+        -to [get_cells i_dp_1/genblk1[0].register_i/q_reg] \
+        -slack_lesser_than 99999 \
+        -max_paths 99999 \
+        -nworst 9999 \
+        -hold \
+        -filter {CORNER==Fast}
+    ]
+    set count_of_hold_timing_paths [llength ${hold_timing_paths}]
+    set slacks_for_hold_timing_paths [get_property SLACK ${hold_timing_paths}]
+    set min_slack_for_hold_timing_paths [get_property -min SLACK ${hold_timing_paths}]
+    set sum_of_slack_for_hold_timing_paths [::tcl::mathop::+ {*}${slacks_for_hold_timing_paths}]
+
+    array unset path_cnt
+    array unset min_slak
+    array unset slack
+    array unset sum_of_slack
+
+    array unset timing_path
     array unset params
     return
 }

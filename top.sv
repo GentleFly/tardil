@@ -27,7 +27,7 @@ module top (
 
   data_path #(
     .DATA_DEPTH(1),
-    .COMB_DEPTH(26)
+    .COMB_DEPTH(30)
   ) i_dp_1 (
     .clk(clk),
     //.clk(clk),
