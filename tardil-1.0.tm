@@ -515,7 +515,29 @@ proc ::tardil::reslove {args} {
             }
         }
         dbg_puts "Selected steps: \[${selected_startpoint_shift_cnt} : ${selected_endpoint_shift_cnt}\]"
+      
+
         # TODO: ....
+        # * tardil::shift надо переписать для относительного сдвига ?
+        #      Или переименовать ее в "tardil::connect_to_clock",
+        #      и новый функционал описать для относительного выполнения сдвига
+        # * Current shift ???
+        # * Already shifted ???
+
+        if { ${selected_startpoint_shift_cnt} > 0 } {
+            tardil::shift \
+                -allow_create_clock \
+                -clock_shift_step [expr -180 * ${selected_startpoint_shift_cnt}] \
+                [get_pins ${startpoint_cell}/C]
+        }
+
+        if { ${selected_endpoint_shift_cnt} > 0 } {
+            tardil::shift \
+                -allow_create_clock \
+                -clock_shift_step [expr +180 * ${selected_endpoint_shift_cnt}] \
+                [get_pins ${endpoint_cell}/C]
+        }
+
     }
     if { ${hold_slack} < 0 } {
         puts [expr int(abs(${hold_slack})/${startpoint_shift_step}) + 1]
