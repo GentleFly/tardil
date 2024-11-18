@@ -480,37 +480,42 @@ proc ::tardil::reslove {args} {
     if { ${setup_slack} < 0 } {
         set cnt_step [expr int(abs(${setup_slack})/${startpoint_shift_step}) + 1]
         for {set i 0} {${i} < ${cnt_step}+1} {incr i} {
-            #set startpoint_shift_cnt [expr 0 - ${i}]
             set startpoint_shift_cnt ${i}
             set endpoint_shift_cnt [expr ${cnt_step} - ${i}]
             dbg_puts "Step for startpoint and step for endpoint: \[${startpoint_shift_cnt} : ${endpoint_shift_cnt}\]"
 
+
             set startpoint_shift [expr ${startpoint_shift_cnt}*${startpoint_shift_step}]
             dbg_puts "    Startpoint shift: ${startpoint_shift}"
+            set sts [expr $sum_of_slack(setup,to,startpoint) - (${startpoint_shift}*$path_cnt(setup,to,startpoint))]
+            #dbg_puts "      setup,to,startpoint: ${sts}"
+            set hts [expr $sum_of_slack(hold,to,startpoint) + (${startpoint_shift}*$path_cnt(hold,to,startpoint))]
+            #dbg_puts "      hold,to,startpoint: ${hts}"
 
             set endpoint_shift [expr ${endpoint_shift_cnt}*${endpoint_shift_step}]
             dbg_puts "    Endpoint shift: ${endpoint_shift}"
+            set sfe [expr $sum_of_slack(setup,from,endpoint) - (${endpoint_shift}*$path_cnt(setup,from,endpoint))]
+            #dbg_puts "      setup,from,endpoint: ${sfe}"
+            set hfe [expr $sum_of_slack(hold,from,endpoint) + (${endpoint_shift}*$path_cnt(hold,from,endpoint))]
+            #dbg_puts "      hold,from,endpoint: ${hfe}"
 
-            set startpoint_weight 0
-            foreach tp [array names timing_paths -regexp {.*,to,startpoint$}] {
-                #puts [expr $sum_of_slack(${tp}) - (${startpoint_shift}*$path_cnt(${tp}))]
-                set a [expr $sum_of_slack(${tp}) - (${startpoint_shift}*$path_cnt(${tp}))]
-                set startpoint_weight [expr ${startpoint_weight} + ${a}]
+            set weight [tcl::mathfunc::min ${sts} ${hts} ${sfe} ${hfe}]
+            dbg_puts "    Weight: ${weight}"
+
+            if { [info exist best_weight] } {
+                if { ${best_weight} < ${weight} } {
+                    set best_weight ${weight}
+                    set selected_startpoint_shift_cnt ${startpoint_shift_cnt}
+                    set selected_endpoint_shift_cnt ${endpoint_shift_cnt}
+                }
+            } else {
+                set best_weight ${weight}
+                set selected_startpoint_shift_cnt ${startpoint_shift_cnt}
+                set selected_endpoint_shift_cnt ${endpoint_shift_cnt}
             }
-
-            set endpoint_weight 0
-            foreach tp [array names timing_paths -regexp {.*,from,endpoint$}] {
-                #puts [expr $sum_of_slack(${tp}) - (${endpoint_shift}*$path_cnt(${tp}))]
-                set a [expr $sum_of_slack(${tp}) - (${endpoint_shift}*$path_cnt(${tp}))]
-                set endpoint_weight [expr ${endpoint_weight} + ${a}]
-            }
-
-            puts "startpoint_weight: ${startpoint_weight}"
-            puts "endpoint_weight: ${endpoint_weight}"
-            puts [expr ${startpoint_weight} + ${endpoint_weight}]
-
-            # TODO ...
         }
+        dbg_puts "Selected steps: \[${selected_startpoint_shift_cnt} : ${selected_endpoint_shift_cnt}\]"
+        # TODO: ....
     }
     if { ${hold_slack} < 0 } {
         puts [expr int(abs(${hold_slack})/${startpoint_shift_step}) + 1]
