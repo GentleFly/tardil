@@ -100,19 +100,19 @@ proc ::tardil::clone_bufg {args} {
     return ${new_inst}
 }
 
-proc ::tardil::shift {args} {
-    # source ./tardil-1.0.tm; tardil::shift -allow_create_clock -clock_shift_step -180 i_dp_1/genblk1[0].register_i/q_reg/C
-    # source ./tardil-1.0.tm; tardil::shift -allow_create_clock -clock_shift_step -180 i_dp_0/genblk1[9].register_i/q_reg/C
-    # tardil::shift -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
-    # tardil::shift -allow_create_clock -clock_shift_step 360 i_dp_1/genblk1[0].register_i/q_reg/C
-    # tardil::shift -allow_create_clock -clock_shift_step 180 i_dp_2/genblk1[0].register_i/q_reg/C
+proc ::tardil::connet_to_clock {args} {
+    # source ./tardil-1.0.tm; tardil::connet_to_clock -allow_create_clock -clock_shift_step -180 i_dp_1/genblk1[0].register_i/q_reg/C
+    # source ./tardil-1.0.tm; tardil::connet_to_clock -allow_create_clock -clock_shift_step -180 i_dp_0/genblk1[9].register_i/q_reg/C
+    # tardil::connet_to_clock -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
+    # tardil::connet_to_clock -allow_create_clock -clock_shift_step 360 i_dp_1/genblk1[0].register_i/q_reg/C
+    # tardil::connet_to_clock -allow_create_clock -clock_shift_step 180 i_dp_2/genblk1[0].register_i/q_reg/C
     #
     #source ./tardil-1.0.tm; close_design ; read_checkpoint ./syn.dcp ; link_design
-    # tardil::shift -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
-    # tardil::shift -allow_create_clock -clock_shift_step -180 i_dp_0/genblk1[9].register_i/q_reg/C
-    # tardil::shift -allow_create_clock -clock_shift_step 360 i_dp_1/genblk1[0].register_i/q_reg/C
-    # tardil::shift -allow_create_clock -clock_shift_step 180 i_dp_2/genblk1[0].register_i/q_reg/C
-    # #tardil::shift -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
+    # tardil::connet_to_clock -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
+    # tardil::connet_to_clock -allow_create_clock -clock_shift_step -180 i_dp_0/genblk1[9].register_i/q_reg/C
+    # tardil::connet_to_clock -allow_create_clock -clock_shift_step 360 i_dp_1/genblk1[0].register_i/q_reg/C
+    # tardil::connet_to_clock -allow_create_clock -clock_shift_step 180 i_dp_2/genblk1[0].register_i/q_reg/C
+    # #tardil::connet_to_clock -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
     variable prefix
     dbg_puts [info level 0]
 
@@ -263,6 +263,75 @@ proc ::tardil::shift {args} {
         }
     }
 
+
+    array unset params
+    return
+}
+
+proc ::tardil::shift {args} {
+    variable prefix
+    dbg_puts [info level 0]
+
+    set options {
+        { "allow_create_clock"       "Allow to create clock, in needed clock not exist"    }
+        { "clock_shift_step.arg" 0 "Shift Clock Step on value in degree (180, 90, 60, ... ). Default:" }
+    }
+    set usage ": [lindex [info level 0] 0] \[options] <register_clock_pins> \noptions:"
+    array set params [::cmdline::getoptions args ${options} ${usage}]
+    if {[lsearch -regexp ${args} {-.*}] > -1} {
+        return -code error -errorinfo [::cmdline::usage ${options} ${usage}]
+    } else {
+        dbg_puts "Prams: [array get params]"
+    }
+
+    set register_clock_pins [get_pins "[lindex ${args} 0]" -filter {IS_CLOCK==true}]
+    set args [lreplace ${args} 0 0]
+    if {[llength ${register_clock_pins}] == 0} {
+        error [::cmdline::usage ${options} ${usage}]
+    } else {
+        dbg_puts "Clock pins:"
+        foreach clock_pin ${register_clock_pins} {
+            dbg_puts "    ${register_clock_pins}"
+        }
+    }
+    if {[llength ${args}] != 0} {
+        dbg_puts "args: ${args}"
+        error [::cmdline::usage ${options} ${usage}]
+    }
+    dbg_puts "Parameters resolved"
+
+    set clocks [get_clocks -of_objects ${register_clock_pins}]
+    if {[llength ${clocks}] > 1} {
+        error "Detetected several slocks: ${clocks}"
+    } else {
+        set clock_on_pin [lindex ${clocks} 0]
+        dbg_puts "Detected clock: ${clock_on_pin}"
+    }
+
+    if {[regexp "(.*)_${prefix}_(n|p)0*(\[1-9]\[0-9]+)" ${clock_on_pin} match orig_clock_name sign step]} {
+        set orig_clock [get_clocks ${orig_clock_name}]
+        if { ${sign} == "p" } {
+            set current_shift [expr 0 + ${step}]
+        } elseif { ${sign} == "n"} {
+            set current_shift [expr 0 - ${step}]
+        }
+    } else {
+        set orig_clock ${clock_on_pin}
+        set current_shift 0
+    }
+
+    set target_shift [expr ${current_shift} + $params(clock_shift_step)]
+
+    if { $params(allow_create_clock) } {
+        set allow_create_clock "-allow_create_clock"
+    } else {
+        set allow_create_clock ""
+    }
+
+    tardil::connet_to_clock \
+        ${allow_create_clock} \
+        -clock_shift_step ${target_shift} \
+        [get_pins ${register_clock_pins}]
 
     array unset params
     return
@@ -516,14 +585,6 @@ proc ::tardil::reslove {args} {
         }
         dbg_puts "Selected steps: \[${selected_startpoint_shift_cnt} : ${selected_endpoint_shift_cnt}\]"
       
-
-        # TODO: ....
-        # * tardil::shift надо переписать для относительного сдвига ?
-        #      Или переименовать ее в "tardil::connect_to_clock",
-        #      и новый функционал описать для относительного выполнения сдвига
-        # * Current shift ???
-        # * Already shifted ???
-
         if { ${selected_startpoint_shift_cnt} > 0 } {
             tardil::shift \
                 -allow_create_clock \
