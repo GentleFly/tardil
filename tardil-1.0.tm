@@ -268,8 +268,10 @@ proc ::tardil::connet_to_clock {args} {
     return
 }
 
-proc ::tardil::pattern_to_name_and_shift {clock_name} {
+proc ::tardil::pattern_to_name_and_shift {clock_name original_clock curr_shift} {
     variable prefix
+    upvar $original_clock orig_clock
+    upvar $curr_shift current_shift
     dbg_puts [info level 0]
 
     if {[regexp "(.*)_${prefix}_(n|p)0*(\[1-9]\[0-9]+)" ${clock_name} match orig_clock sign step]} {
@@ -282,7 +284,7 @@ proc ::tardil::pattern_to_name_and_shift {clock_name} {
         set orig_clock ${clock_name}
         set current_shift 0
     }
-    return [list ${orig_clock} ${current_shift}]
+    return
 }
 
 proc ::tardil::shift {args} {
@@ -570,8 +572,8 @@ proc ::tardil::reslove {args} {
     if { ${setup_slack} >= 0 } {
         return
     }
+    set cnt_step [expr int(abs(${setup_slack})/${startpoint_shift_step}) + 1]
     if {${startpoint_clock} == ${endpoint_clock}} {
-        set cnt_step [expr int(abs(${setup_slack})/${startpoint_shift_step}) + 1]
         for {set i 0} {${i} < ${cnt_step}+1} {incr i} {
             set startpoint_shift_cnt ${i}
             set endpoint_shift_cnt [expr ${cnt_step} - ${i}]
@@ -607,22 +609,41 @@ proc ::tardil::reslove {args} {
                 set selected_endpoint_shift_cnt ${endpoint_shift_cnt}
             }
         }
-        dbg_puts "Selected steps: \[${selected_startpoint_shift_cnt} : ${selected_endpoint_shift_cnt}\]"
     } else {
-        set tmp [::tardil::pattern_to_name_and_shift ${startpoint_clock}]
-        set startpoint_origin_clock  [lindex ${tmp} 0]
-        set startpoint_current_shfit [lindex ${tmp} 1]
+        ::tardil::pattern_to_name_and_shift ${startpoint_clock} startpoint_origin_clock startpoint_current_shfit 
+        dbg_puts "${startpoint_clock}: ${startpoint_origin_clock} ${startpoint_current_shfit}"
+        ::tardil::pattern_to_name_and_shift   ${endpoint_clock}   endpoint_origin_clock   endpoint_current_shfit 
+        dbg_puts "${endpoint_clock}: ${endpoint_origin_clock} ${endpoint_current_shfit}"
 
-        set tmp [::tardil::pattern_to_name_and_shift ${endpoint_clock}]
-        set endpoint_origin_clock  [lindex ${tmp} 0]
-        set endpoint_current_shfit [lindex ${tmp} 1]
+        #if { ${startpoint_current_shfit} < ${endpoint_current_shfit} } {
+        #    set selected_startpoint_shift_cnt ${cnt_step}
+        #    set selected_endpoint_shift_cnt 0
+        #} elseif { ${startpoint_current_shfit} > ${endpoint_current_shfit} } {
+        #    set selected_startpoint_shift_cnt 0
+        #    set selected_endpoint_shift_cnt ${cnt_step}
+        #} else {
+        #    error "WTF?!?!"
+        #}
+        if       { ${startpoint_current_shfit} == 0 && ${endpoint_current_shfit} != 0 } {
+            set selected_startpoint_shift_cnt ${cnt_step}
+            set selected_endpoint_shift_cnt 0
+        } elseif { ${startpoint_current_shfit} != 0 && ${endpoint_current_shfit} == 0 } {
+            set selected_startpoint_shift_cnt 0
+            set selected_endpoint_shift_cnt ${cnt_step}
+        } else {
+            error "WTF?!?!"
+        }
     }
+    dbg_puts "Selected steps: \[${selected_startpoint_shift_cnt} : ${selected_endpoint_shift_cnt}\]"
+
+    set shifted_cells [list]
 
     if { ${selected_startpoint_shift_cnt} > 0 } {
         tardil::shift \
             -allow_create_clock \
             -clock_shift_step [expr -180 * ${selected_startpoint_shift_cnt}] \
             [get_pins ${startpoint_cell}/C]
+        set shifted_cells [lappend ${startpoint_cell}]
     }
 
     if { ${selected_endpoint_shift_cnt} > 0 } {
@@ -630,11 +651,8 @@ proc ::tardil::reslove {args} {
             -allow_create_clock \
             -clock_shift_step [expr +180 * ${selected_endpoint_shift_cnt}] \
             [get_pins ${endpoint_cell}/C]
+        set shifted_cells [lappend ${endpoint_cell}]
     }
-
-    # ? if { ${hold_slack} < 0 } {
-    # ?     puts [expr int(abs(${hold_slack})/${startpoint_shift_step}) + 1]
-    # ? }
 
     #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove [get_timing_paths]
 
@@ -648,7 +666,7 @@ proc ::tardil::reslove {args} {
 
     array unset timing_path
     array unset params
-    return
+    return ${shifted_cells}
 }
 
 #set ::tardil::debug 99
