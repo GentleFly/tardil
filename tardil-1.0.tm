@@ -550,6 +550,9 @@ proc ::tardil::reslove_slack {args} {
    #set timing_paths(hold,to,endpoint)      [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
     set timing_paths(setup,from,endpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -from ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
     set timing_paths(hold,from,endpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -from ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
+    # TODO:
+    # Здесь не отрабатывает когда стартовая точка находится возле порта.
+    # Здесь надо проводить проверку и если путей ноль, и может еще раз применить команду get_timing_paths, но без указания CORNER ?
     dbg_puts "Timing paths: [array get timing_paths]"
     foreach tp [array names timing_paths] {
         if { [llength $timing_paths(${tp})] == 0 } {
@@ -634,6 +637,12 @@ proc ::tardil::reslove_slack {args} {
             set selected_startpoint_shift_cnt ${cnt_step}
             set selected_endpoint_shift_cnt 0
         } elseif { ${startpoint_current_shfit} != 0 && ${endpoint_current_shfit} == 0 } {
+            set selected_startpoint_shift_cnt 0
+            set selected_endpoint_shift_cnt ${cnt_step}
+        }elseif { ${startpoint_current_shfit} < ${endpoint_current_shfit} } {
+            set selected_startpoint_shift_cnt ${cnt_step}
+            set selected_endpoint_shift_cnt 0
+        } elseif { ${startpoint_current_shfit} > ${endpoint_current_shfit} } {
             set selected_startpoint_shift_cnt 0
             set selected_endpoint_shift_cnt ${cnt_step}
         } else {
