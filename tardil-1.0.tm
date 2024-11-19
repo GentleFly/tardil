@@ -494,7 +494,7 @@ proc ::tardil::check_changes_window {timing_path} {
     return
 }
 
-proc ::tardil::reslove {args} {
+proc ::tardil::reslove_slack {args} {
     variable debug
     dbg_puts [info level 0]
 
@@ -542,15 +542,21 @@ proc ::tardil::reslove {args} {
         error "Start cell and end cell is same!"
     }
 
-    set timing_paths(setup,to,startpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -to   ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
-    set timing_paths(hold,to,startpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
-    set timing_paths(setup,from,startpoint) [get_timing_paths -setup -filter {CORNER==Slow} -from ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
-    set timing_paths(hold,from,startpoint)  [get_timing_paths -hold  -filter {CORNER==Fast} -from ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
-    set timing_paths(setup,to,endpoint)     [get_timing_paths -setup -filter {CORNER==Slow} -to   ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
-    set timing_paths(hold,to,endpoint)      [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
-    set timing_paths(setup,from,endpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -from ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
-    set timing_paths(hold,from,endpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -from ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999]
+    set timing_paths(setup,to,startpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -to   ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
+    set timing_paths(hold,to,startpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
+   #set timing_paths(setup,from,startpoint) [get_timing_paths -setup -filter {CORNER==Slow} -from ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
+   #set timing_paths(hold,from,startpoint)  [get_timing_paths -hold  -filter {CORNER==Fast} -from ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
+   #set timing_paths(setup,to,endpoint)     [get_timing_paths -setup -filter {CORNER==Slow} -to   ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
+   #set timing_paths(hold,to,endpoint)      [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
+    set timing_paths(setup,from,endpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -from ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
+    set timing_paths(hold,from,endpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -from ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
     dbg_puts "Timing paths: [array get timing_paths]"
+    foreach tp [array names timing_paths] {
+        if { [llength $timing_paths(${tp})] == 0 } {
+            # TODO ?!?
+            return [list]
+        }
+    }
 
     foreach tp [array names timing_paths] {
         dbg_puts "    Timing path: ${tp}"
@@ -654,7 +660,7 @@ proc ::tardil::reslove {args} {
         set shifted_cells [lappend ${endpoint_cell}]
     }
 
-    #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove [get_timing_paths]
+    #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove_slack [get_timing_paths]
 
     # TODO:
     # rename funcion "reslove" -> "reslove_slack" "reslove slack on path" ?
@@ -669,7 +675,26 @@ proc ::tardil::reslove {args} {
     return ${shifted_cells}
 }
 
+proc ::tardil::example {} {
+
+    set timing_path [get_timing_paths -from [get_clocks original_clock*] -to [get_clocks original_clock*] -slack_lesser_than 0 -quiet]
+    while {[llength ${timing_path}] > 0} {
+        dbg_puts "Reslove steup path: ${timing_path}"
+        set shifted_cells [tardil::reslove_slack ${timing_path}]
+        if {[llength ${shifted_cells}] == 0} {
+            break
+            #error "TODO ?!?!??!"
+        }
+        foreach c ${shifted_cells} {
+            dbg_puts "  $c"
+        }
+        set timing_path [get_timing_paths -from [get_clocks original_clock*] -to [get_clocks original_clock*] -slack_lesser_than 0 -quiet]
+    }
+
+}
+
 #set ::tardil::debug 99
 #::tardil::init
-::tardil::init -debug 99
+#::tardil::init -debug 99
+::tardil::init -debug 1
 
