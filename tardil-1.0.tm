@@ -268,6 +268,23 @@ proc ::tardil::connet_to_clock {args} {
     return
 }
 
+proc ::tardil::pattern_to_name_and_shift {clock_name} {
+    variable prefix
+    dbg_puts [info level 0]
+
+    if {[regexp "(.*)_${prefix}_(n|p)0*(\[1-9]\[0-9]+)" ${clock_name} match orig_clock sign step]} {
+        if { ${sign} == "p" } {
+            set current_shift [expr 0 + ${step}]
+        } elseif { ${sign} == "n"} {
+            set current_shift [expr 0 - ${step}]
+        }
+    } else {
+        set orig_clock ${clock_name}
+        set current_shift 0
+    }
+    return [list ${orig_clock} ${current_shift}]
+}
+
 proc ::tardil::shift {args} {
     variable prefix
     dbg_puts [info level 0]
@@ -503,14 +520,18 @@ proc ::tardil::reslove {args} {
 
     set startpoint_cell   [get_property PARENT_CELL [get_property STARTPOINT_PIN ${timing_path}]]
     dbg_puts "Start point: ${startpoint_cell}"
-    set startpoint_period [get_property PERIOD [get_property STARTPOINT_CLOCK ${timing_path}]]
+    set startpoint_clock [get_property STARTPOINT_CLOCK ${timing_path}]
+    dbg_puts "Start point clock: ${startpoint_clock}"
+    set startpoint_period [get_property PERIOD ${startpoint_clock}]
     dbg_puts "Start point period: ${startpoint_period}"
     set startpoint_shift_step [expr ${startpoint_period}*($params(clock_shift_step)/360.0)]
     dbg_puts "Start point shift step: ${startpoint_shift_step}"
 
     set endpoint_cell   [get_property PARENT_CELL [get_property ENDPOINT_PIN   ${timing_path}]]
     dbg_puts "End point: ${endpoint_cell}"
-    set endpoint_period [get_property PERIOD [get_property ENDPOINT_CLOCK ${timing_path}]]
+    set endpoint_clock [get_property ENDPOINT_CLOCK ${timing_path}]
+    dbg_puts "End point period: ${endpoint_clock}"
+    set endpoint_period [get_property PERIOD ${endpoint_clock}]
     dbg_puts "End point period: ${endpoint_period}"
     set endpoint_shift_step [expr ${endpoint_period}*($params(clock_shift_step)/360.0)]
     dbg_puts "End point shift step: ${startpoint_shift_step}"
@@ -546,7 +567,10 @@ proc ::tardil::reslove {args} {
     set hold_slack [get_property SLACK [get_timing_paths -hold -through [get_pins -of_objects ${timing_path}]]]
     dbg_puts "Hold Slack: ${hold_slack}"
 
-    if { ${setup_slack} < 0 } {
+    if { ${setup_slack} >= 0 } {
+        return
+    }
+    if {${startpoint_clock} == ${endpoint_clock}} {
         set cnt_step [expr int(abs(${setup_slack})/${startpoint_shift_step}) + 1]
         for {set i 0} {${i} < ${cnt_step}+1} {incr i} {
             set startpoint_shift_cnt ${i}
@@ -584,27 +608,38 @@ proc ::tardil::reslove {args} {
             }
         }
         dbg_puts "Selected steps: \[${selected_startpoint_shift_cnt} : ${selected_endpoint_shift_cnt}\]"
-      
-        if { ${selected_startpoint_shift_cnt} > 0 } {
-            tardil::shift \
-                -allow_create_clock \
-                -clock_shift_step [expr -180 * ${selected_startpoint_shift_cnt}] \
-                [get_pins ${startpoint_cell}/C]
-        }
+    } else {
+        set tmp [::tardil::pattern_to_name_and_shift ${startpoint_clock}]
+        set startpoint_origin_clock  [lindex ${tmp} 0]
+        set startpoint_current_shfit [lindex ${tmp} 1]
 
-        if { ${selected_endpoint_shift_cnt} > 0 } {
-            tardil::shift \
-                -allow_create_clock \
-                -clock_shift_step [expr +180 * ${selected_endpoint_shift_cnt}] \
-                [get_pins ${endpoint_cell}/C]
-        }
+        set tmp [::tardil::pattern_to_name_and_shift ${endpoint_clock}]
+        set endpoint_origin_clock  [lindex ${tmp} 0]
+        set endpoint_current_shfit [lindex ${tmp} 1]
+    }
 
+    if { ${selected_startpoint_shift_cnt} > 0 } {
+        tardil::shift \
+            -allow_create_clock \
+            -clock_shift_step [expr -180 * ${selected_startpoint_shift_cnt}] \
+            [get_pins ${startpoint_cell}/C]
     }
-    if { ${hold_slack} < 0 } {
-        puts [expr int(abs(${hold_slack})/${startpoint_shift_step}) + 1]
+
+    if { ${selected_endpoint_shift_cnt} > 0 } {
+        tardil::shift \
+            -allow_create_clock \
+            -clock_shift_step [expr +180 * ${selected_endpoint_shift_cnt}] \
+            [get_pins ${endpoint_cell}/C]
     }
+
+    # ? if { ${hold_slack} < 0 } {
+    # ?     puts [expr int(abs(${hold_slack})/${startpoint_shift_step}) + 1]
+    # ? }
 
     #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove [get_timing_paths]
+
+    # TODO:
+    # rename funcion "reslove" -> "reslove_slack" "reslove slack on path" ?
 
     array unset path_cnt
     array unset min_slak
