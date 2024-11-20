@@ -14,6 +14,7 @@ set files { \
   ./comb_path.sv \
   ./data_path.sv \
   ./clocks.sv \
+  ./sync.sv \
   ./top.sv \
 }
 

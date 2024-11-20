@@ -1,19 +1,25 @@
 
 module top (
   input clock,
-  input rst,
+  input rst_i,
   input in,
   output out
 );
 
-  wire clk, clk_inv;
+  wire clk, clk_inv, rst;
   wire [1:0] interal;
 
-   clocks clocks_inst (
-      .out(clk),
-      .out_inv(clk_inv),
-      .in(clock)
-   );
+  sync rst_sync(
+    .clk(clk),
+    .in(rst_i),
+    .out(rst)
+  );
+
+  clocks clocks_inst (
+     .out(clk),
+     .out_inv(clk_inv),
+     .in(clock)
+  );
 
   data_path #(
     .DATA_DEPTH(10),
