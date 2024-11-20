@@ -23,7 +23,7 @@ proc ::tardil::dbg_puts {args} {
         array set inf [info frame -1]
         #parray inf
         #puts $inf(proc)
- 
+
         set empty_prefix ""
         for {set i 0} {${i}<[expr [info level]-1]} {incr i} {
             set empty_prefix "  ${empty_prefix}"
@@ -154,7 +154,7 @@ proc ::tardil::connect_to_clock {args} {
         error [::cmdline::usage ${options} ${usage}]
     }
     dbg_puts "Parameters resolved"
-    
+
 
     foreach register_clock_pin ${register_clock_pins} {
         set current_shifted_clock_name ""
@@ -240,7 +240,7 @@ proc ::tardil::connect_to_clock {args} {
                 -net [get_nets -of_objects ${register_clock_pin}] \
                 -objects [list ${register_clock_pin}]
             dbg_puts "  Disconnected register clock pin for old clock"
-            
+
             connect_net \
                 -hierarchical \
                 -net [get_nets -of_objects [get_pins ${src_inst}/O]] \
@@ -408,7 +408,7 @@ proc ::tardil::summ_slack {args} {
     get_property SLACK  [get_timing_paths  -to [get_cells i_dp_1/genblk1[0].register_i/q_reg] -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -setup]
     CORNER Slow
     CORNER Fast
-    
+
     ::tcl::mathop::+ {*}[get_property SLACK \
         [get_timing_paths  \
             -to [get_cells i_dp_1/genblk1[0].register_i/q_reg] \
@@ -615,20 +615,11 @@ proc ::tardil::reslove_setup_slack {args} {
             }
         }
     } else {
-        ::tardil::pattern_to_name_and_shift ${startpoint_clock} startpoint_origin_clock startpoint_current_shfit 
+        ::tardil::pattern_to_name_and_shift ${startpoint_clock} startpoint_origin_clock startpoint_current_shfit
         dbg_puts "${startpoint_clock}: ${startpoint_origin_clock} ${startpoint_current_shfit}"
-        ::tardil::pattern_to_name_and_shift   ${endpoint_clock}   endpoint_origin_clock   endpoint_current_shfit 
+        ::tardil::pattern_to_name_and_shift   ${endpoint_clock}   endpoint_origin_clock   endpoint_current_shfit
         dbg_puts "${endpoint_clock}: ${endpoint_origin_clock} ${endpoint_current_shfit}"
 
-        #if { ${startpoint_current_shfit} < ${endpoint_current_shfit} } {
-        #    set selected_startpoint_shift_cnt ${cnt_step}
-        #    set selected_endpoint_shift_cnt 0
-        #} elseif { ${startpoint_current_shfit} > ${endpoint_current_shfit} } {
-        #    set selected_startpoint_shift_cnt 0
-        #    set selected_endpoint_shift_cnt ${cnt_step}
-        #} else {
-        #    error "WTF?!?!"
-        #}
         if       { ${startpoint_current_shfit} == 0 && ${endpoint_current_shfit} != 0 } {
             set selected_startpoint_shift_cnt ${cnt_step}
             set selected_endpoint_shift_cnt 0
@@ -665,14 +656,11 @@ proc ::tardil::reslove_setup_slack {args} {
         set shifted_cells [lappend shifted_cells ${endpoint_cell}]
     }
 
-    #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove_setup_slack [get_timing_paths]
-
     array unset path_cnt
     array unset min_slak
-    array unset slack
     array unset sum_of_slack
 
-    array unset timing_path
+    array unset timing_paths
     array unset params
     return ${shifted_cells}
 }
@@ -698,4 +686,6 @@ proc ::tardil::example {} {
 #::tardil::init
 #::tardil::init -debug 99
 ::tardil::init -debug 1
+
+#namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove_setup_slack [get_timing_paths]
 
