@@ -802,7 +802,7 @@ proc ::tardil::reslove_hold_slack {args} {
     return ${shifted_cells}
 }
 
-proc ::tardil::example {} {
+proc ::tardil::reslove {} {
 
     set timing_path [get_timing_paths -from [get_clocks original_clock*] -to [get_clocks original_clock*] -slack_lesser_than 0 -quiet]
     while {[llength ${timing_path}] > 0} {
@@ -816,6 +816,50 @@ proc ::tardil::example {} {
         }
         set timing_path [get_timing_paths -from [get_clocks original_clock*] -to [get_clocks original_clock*] -slack_lesser_than 0 -quiet]
     }
+
+    set shifted_cells 0
+    set exist_hold_violation false
+    set timing_paths [get_timing_paths \
+        -hold \
+        -from [get_clocks original_clock*] \
+        -to [get_clocks original_clock*] \
+        -slack_lesser_than -0.4 \
+        -nworst 999 -max_paths 999 -quiet \
+    ]
+    for {set i 0} {${i} < [llength ${timing_paths}]} {incr i} {
+        set timing_path [lindex ${timing_paths} ${i}]
+        dbg_puts "Reslove hold path: ${timing_path}"
+        set shifted_cells [tardil::reslove_hold_slack ${timing_path}]
+        if {[llength ${shifted_cells}] > 0} {
+            set exist_hold_violation true
+            break
+        }
+    }
+
+    ## set exist_hold_violation true
+    ## while ${exist_hold_violation} {
+    ##     set exist_hold_violation false
+    ##     set timing_paths [get_timing_paths \
+    ##         -hold \
+    ##         -from [get_clocks original_clock*] \
+    ##         -to [get_clocks original_clock*] \
+    ##         -slack_lesser_than -0.4 \
+    ##         -nworst 999 -max_paths 999 -quiet \
+    ##     ]
+    ##     for {set i 0} {${i} < [llength ${timing_paths}]} {incr i} {
+    ##         set timing_path [lindex ${timing_paths} ${i}]
+    ##         dbg_puts "Reslove hold path: ${timing_path}"
+    ##         set shifted_cells [tardil::reslove_hold_slack ${timing_path}]
+    ##         if {[llength ${shifted_cells}] > 0} {
+    ##             set exist_hold_violation true
+    ##             break
+    ##         }
+    ##     }
+    ## }
+
+    #foreach timing_path ${timing_paths} {
+    #    puts [get_property SLACK ${timing_path}]
+    #}
 
     ## set timing_path [get_timing_paths -hold -from [get_clocks original_clock*] -to [get_clocks original_clock*] -slack_lesser_than 0 -quiet]
     ## while {[llength ${timing_path}] > 0} {
@@ -838,6 +882,6 @@ proc ::tardil::example {} {
 ::tardil::init -debug 99
 
 #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove_setup_slack [get_timing_paths]
-#namespace delete tardil; source ./tardil-1.0.tm; tardil::example
+#namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove
 #close_design ; close_project ; read_checkpoint ./checkpoint_1.dcp ; link_design
 
