@@ -100,19 +100,19 @@ proc ::tardil::clone_bufg {args} {
     return ${new_inst}
 }
 
-proc ::tardil::connet_to_clock {args} {
-    # source ./tardil-1.0.tm; tardil::connet_to_clock -allow_create_clock -clock_shift_step -180 i_dp_1/genblk1[0].register_i/q_reg/C
-    # source ./tardil-1.0.tm; tardil::connet_to_clock -allow_create_clock -clock_shift_step -180 i_dp_0/genblk1[9].register_i/q_reg/C
-    # tardil::connet_to_clock -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
-    # tardil::connet_to_clock -allow_create_clock -clock_shift_step 360 i_dp_1/genblk1[0].register_i/q_reg/C
-    # tardil::connet_to_clock -allow_create_clock -clock_shift_step 180 i_dp_2/genblk1[0].register_i/q_reg/C
+proc ::tardil::connect_to_clock {args} {
+    # source ./tardil-1.0.tm; tardil::connect_to_clock -allow_create_clock -clock_shift_step -180 i_dp_1/genblk1[0].register_i/q_reg/C
+    # source ./tardil-1.0.tm; tardil::connect_to_clock -allow_create_clock -clock_shift_step -180 i_dp_0/genblk1[9].register_i/q_reg/C
+    # tardil::connect_to_clock -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
+    # tardil::connect_to_clock -allow_create_clock -clock_shift_step 360 i_dp_1/genblk1[0].register_i/q_reg/C
+    # tardil::connect_to_clock -allow_create_clock -clock_shift_step 180 i_dp_2/genblk1[0].register_i/q_reg/C
     #
     #source ./tardil-1.0.tm; close_design ; read_checkpoint ./syn.dcp ; link_design
-    # tardil::connet_to_clock -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
-    # tardil::connet_to_clock -allow_create_clock -clock_shift_step -180 i_dp_0/genblk1[9].register_i/q_reg/C
-    # tardil::connet_to_clock -allow_create_clock -clock_shift_step 360 i_dp_1/genblk1[0].register_i/q_reg/C
-    # tardil::connet_to_clock -allow_create_clock -clock_shift_step 180 i_dp_2/genblk1[0].register_i/q_reg/C
-    # #tardil::connet_to_clock -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
+    # tardil::connect_to_clock -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
+    # tardil::connect_to_clock -allow_create_clock -clock_shift_step -180 i_dp_0/genblk1[9].register_i/q_reg/C
+    # tardil::connect_to_clock -allow_create_clock -clock_shift_step 360 i_dp_1/genblk1[0].register_i/q_reg/C
+    # tardil::connect_to_clock -allow_create_clock -clock_shift_step 180 i_dp_2/genblk1[0].register_i/q_reg/C
+    # #tardil::connect_to_clock -allow_create_clock -clock_shift_step 180 i_dp_1/genblk1[0].register_i/q_reg/C
     variable prefix
     dbg_puts [info level 0]
 
@@ -347,7 +347,7 @@ proc ::tardil::shift {args} {
         set allow_create_clock ""
     }
 
-    tardil::connet_to_clock \
+    tardil::connect_to_clock \
         ${allow_create_clock} \
         -clock_shift_step ${target_shift} \
         [get_pins ${register_clock_pins}]
@@ -494,7 +494,7 @@ proc ::tardil::check_changes_window {timing_path} {
     return
 }
 
-proc ::tardil::reslove_slack {args} {
+proc ::tardil::reslove_setup_slack {args} {
     variable debug
     dbg_puts [info level 0]
 
@@ -542,24 +542,15 @@ proc ::tardil::reslove_slack {args} {
         error "Start cell and end cell is same!"
     }
 
-    set timing_paths(setup,to,startpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -to   ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(hold,to,startpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
-   #set timing_paths(setup,from,startpoint) [get_timing_paths -setup -filter {CORNER==Slow} -from ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
-   #set timing_paths(hold,from,startpoint)  [get_timing_paths -hold  -filter {CORNER==Fast} -from ${startpoint_cell} -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
-   #set timing_paths(setup,to,endpoint)     [get_timing_paths -setup -filter {CORNER==Slow} -to   ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
-   #set timing_paths(hold,to,endpoint)      [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(setup,from,endpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -from ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(hold,from,endpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -from ${endpoint_cell}   -slack_lesser_than 99999 -max_paths 99999 -nworst 9999 -quiet]
-    # TODO:
-    # Здесь не отрабатывает когда стартовая точка находится возле порта.
-    # Здесь надо проводить проверку и если путей ноль, и может еще раз применить команду get_timing_paths, но без указания CORNER ?
+    set timing_paths(setup,to,startpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -to   ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
+    set timing_paths(hold,to,startpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
+   #set timing_paths(setup,from,startpoint) [get_timing_paths -setup -filter {CORNER==Slow} -from ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
+   #set timing_paths(hold,from,startpoint)  [get_timing_paths -hold  -filter {CORNER==Fast} -from ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
+   #set timing_paths(setup,to,endpoint)     [get_timing_paths -setup -filter {CORNER==Slow} -to   ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
+   #set timing_paths(hold,to,endpoint)      [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
+    set timing_paths(setup,from,endpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -from ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
+    set timing_paths(hold,from,endpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -from ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
     dbg_puts "Timing paths: [array get timing_paths]"
-    foreach tp [array names timing_paths] {
-        if { [llength $timing_paths(${tp})] == 0 } {
-            # TODO ?!?
-            return [list]
-        }
-    }
 
     foreach tp [array names timing_paths] {
         dbg_puts "    Timing path: ${tp}"
@@ -569,6 +560,11 @@ proc ::tardil::reslove_slack {args} {
         dbg_puts "        min_slak: $min_slak(${tp})"
         set slacks(${tp})        [get_property SLACK $timing_paths(${tp})]
         dbg_puts "        slack:    $slacks(${tp})"
+    }
+    foreach tp [array names timing_paths] {
+        if { [lindex $slacks(${tp}) 0] == ""} {
+            error "Error: Not founded slacks to ${startpoint_cell}. Check your constraints!"
+        }
         set sum_of_slack(${tp}) [::tcl::mathop::+ {*}$slacks(${tp})]
         dbg_puts "        sum_of_slack: $sum_of_slack(${tp})"
     }
@@ -639,7 +635,7 @@ proc ::tardil::reslove_slack {args} {
         } elseif { ${startpoint_current_shfit} != 0 && ${endpoint_current_shfit} == 0 } {
             set selected_startpoint_shift_cnt 0
             set selected_endpoint_shift_cnt ${cnt_step}
-        }elseif { ${startpoint_current_shfit} < ${endpoint_current_shfit} } {
+        } elseif { ${startpoint_current_shfit} < ${endpoint_current_shfit} } {
             set selected_startpoint_shift_cnt ${cnt_step}
             set selected_endpoint_shift_cnt 0
         } elseif { ${startpoint_current_shfit} > ${endpoint_current_shfit} } {
@@ -658,7 +654,7 @@ proc ::tardil::reslove_slack {args} {
             -allow_create_clock \
             -clock_shift_step [expr -180 * ${selected_startpoint_shift_cnt}] \
             [get_pins ${startpoint_cell}/C]
-        set shifted_cells [lappend ${startpoint_cell}]
+        set shifted_cells [lappend shifted_cells ${startpoint_cell}]
     }
 
     if { ${selected_endpoint_shift_cnt} > 0 } {
@@ -666,13 +662,10 @@ proc ::tardil::reslove_slack {args} {
             -allow_create_clock \
             -clock_shift_step [expr +180 * ${selected_endpoint_shift_cnt}] \
             [get_pins ${endpoint_cell}/C]
-        set shifted_cells [lappend ${endpoint_cell}]
+        set shifted_cells [lappend shifted_cells ${endpoint_cell}]
     }
 
-    #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove_slack [get_timing_paths]
-
-    # TODO:
-    # rename funcion "reslove" -> "reslove_slack" "reslove slack on path" ?
+    #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove_setup_slack [get_timing_paths]
 
     array unset path_cnt
     array unset min_slak
@@ -689,13 +682,12 @@ proc ::tardil::example {} {
     set timing_path [get_timing_paths -from [get_clocks original_clock*] -to [get_clocks original_clock*] -slack_lesser_than 0 -quiet]
     while {[llength ${timing_path}] > 0} {
         dbg_puts "Reslove steup path: ${timing_path}"
-        set shifted_cells [tardil::reslove_slack ${timing_path}]
+        set shifted_cells [tardil::reslove_setup_slack ${timing_path}]
         if {[llength ${shifted_cells}] == 0} {
-            break
-            #error "TODO ?!?!??!"
+            error "Why ?!?!??!"
         }
         foreach c ${shifted_cells} {
-            dbg_puts "  $c"
+            dbg_puts "  Shifted point: $c"
         }
         set timing_path [get_timing_paths -from [get_clocks original_clock*] -to [get_clocks original_clock*] -slack_lesser_than 0 -quiet]
     }

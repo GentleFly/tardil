@@ -38,7 +38,7 @@ module top (
 
   data_path #(
     .DATA_DEPTH(10),
-    .COMB_DEPTH(3)
+    .COMB_DEPTH(4)
   ) i_dp_2 (
     .clk(clk),
     .rst(rst),
