@@ -544,10 +544,10 @@ proc ::tardil::reslove_setup_slack {args} {
 
     set timing_paths(setup,to,startpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -to   ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
     set timing_paths(hold,to,startpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
-   #set timing_paths(setup,from,startpoint) [get_timing_paths -setup -filter {CORNER==Slow} -from ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
-   #set timing_paths(hold,from,startpoint)  [get_timing_paths -hold  -filter {CORNER==Fast} -from ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
-   #set timing_paths(setup,to,endpoint)     [get_timing_paths -setup -filter {CORNER==Slow} -to   ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
-   #set timing_paths(hold,to,endpoint)      [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
+    set timing_paths(setup,from,startpoint) [get_timing_paths -setup -filter {CORNER==Slow} -from ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
+    set timing_paths(hold,from,startpoint)  [get_timing_paths -hold  -filter {CORNER==Fast} -from ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
+    set timing_paths(setup,to,endpoint)     [get_timing_paths -setup -filter {CORNER==Slow} -to   ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
+    set timing_paths(hold,to,endpoint)      [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
     set timing_paths(setup,from,endpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -from ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
     set timing_paths(hold,from,endpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -from ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
     dbg_puts "Timing paths: [array get timing_paths]"
@@ -588,18 +588,27 @@ proc ::tardil::reslove_setup_slack {args} {
             set startpoint_shift [expr ${startpoint_shift_cnt}*${startpoint_shift_step}]
             dbg_puts "    Startpoint shift: ${startpoint_shift}"
             set sts [expr $sum_of_slack(setup,to,startpoint) - (${startpoint_shift}*$path_cnt(setup,to,startpoint))]
-            #dbg_puts "      setup,to,startpoint: ${sts}"
+            set sfs [expr $sum_of_slack(setup,from,startpoint) + (${startpoint_shift}*$path_cnt(setup,to,startpoint))]
             set hts [expr $sum_of_slack(hold,to,startpoint) + (${startpoint_shift}*$path_cnt(hold,to,startpoint))]
-            #dbg_puts "      hold,to,startpoint: ${hts}"
+            set hfs [expr $sum_of_slack(hold,from,startpoint) - (${startpoint_shift}*$path_cnt(hold,to,startpoint))]
 
             set endpoint_shift [expr ${endpoint_shift_cnt}*${endpoint_shift_step}]
             dbg_puts "    Endpoint shift: ${endpoint_shift}"
             set sfe [expr $sum_of_slack(setup,from,endpoint) - (${endpoint_shift}*$path_cnt(setup,from,endpoint))]
-            #dbg_puts "      setup,from,endpoint: ${sfe}"
+            set ste [expr $sum_of_slack(setup,to,endpoint) + (${endpoint_shift}*$path_cnt(setup,from,endpoint))]
             set hfe [expr $sum_of_slack(hold,from,endpoint) + (${endpoint_shift}*$path_cnt(hold,from,endpoint))]
-            #dbg_puts "      hold,from,endpoint: ${hfe}"
+            set hte [expr $sum_of_slack(hold,to,endpoint) - (${endpoint_shift}*$path_cnt(hold,from,endpoint))]
 
-            set weight [tcl::mathfunc::min ${sts} ${hts} ${sfe} ${hfe}]
+            set weight [tcl::mathfunc::min \
+                ${sts} \
+                ${sfs} \
+                ${hts} \
+                ${hfs} \
+                ${sfe} \
+                ${ste} \
+                ${hfe} \
+                ${hte} \
+            ]
             dbg_puts "    Weight: ${weight}"
 
             if { [info exist best_weight] } {
@@ -685,7 +694,7 @@ proc ::tardil::example {} {
 #set ::tardil::debug 99
 #::tardil::init
 #::tardil::init -debug 99
-::tardil::init -debug 1
+::tardil::init -debug 99
 
 #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove_setup_slack [get_timing_paths]
 
