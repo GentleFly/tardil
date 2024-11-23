@@ -596,6 +596,12 @@ proc ::tardil::reslove_hold_slack {args} {
     dbg_puts "Parameters resolved"
 
     set startpoint_cell   [get_property PARENT_CELL [get_property STARTPOINT_PIN ${timing_path}]]
+    if { ${startpoint_cell} == "" } {
+        set startpoint_cell   [get_property STARTPOINT_PIN ${timing_path}]
+        if { [get_property CLASS [get_ports -quiet ${startpoint_cell}]] == "port" } {
+            dbg_puts "Start point is port!"
+        }
+    }
     dbg_puts "Start point: ${startpoint_cell}"
     set startpoint_clock [get_property STARTPOINT_CLOCK ${timing_path}]
     dbg_puts "Start point clock: ${startpoint_clock}"
@@ -605,6 +611,12 @@ proc ::tardil::reslove_hold_slack {args} {
     dbg_puts "Start point shift step: ${startpoint_shift_step}"
 
     set endpoint_cell   [get_property PARENT_CELL [get_property ENDPOINT_PIN   ${timing_path}]]
+    if { ${endpoint_cell} == "" } {
+        set endpoint_cell   [get_property ENDPOINT_PIN ${timing_path}]
+        if { [get_property CLASS [get_ports -quiet ${endpoint_cell}]] == "port" } {
+            dbg_puts "End point is port!"
+        }
+    }
     dbg_puts "End point: ${endpoint_cell}"
     set endpoint_clock [get_property ENDPOINT_CLOCK ${timing_path}]
     dbg_puts "End point period: ${endpoint_clock}"
@@ -626,6 +638,14 @@ proc ::tardil::reslove_hold_slack {args} {
     set timing_paths(setup,from,endpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -from ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
     set timing_paths(hold,from,endpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -from ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
     dbg_puts "Timing paths: [array get timing_paths]"
+    parray timing_paths
+    foreach tp [array names timing_paths] {
+        if {$timing_paths(${tp}) == ""} {
+            unset timing_paths(${tp})
+        }
+    }
+    parray timing_paths
+
 
     foreach tp [array names timing_paths] {
         dbg_puts "    Timing path: ${tp}"
@@ -817,45 +837,26 @@ proc ::tardil::reslove {} {
         set timing_path [get_timing_paths -from [get_clocks original_clock*] -to [get_clocks original_clock*] -slack_lesser_than 0 -quiet]
     }
 
-    set shifted_cells 0
-    set exist_hold_violation false
-    set timing_paths [get_timing_paths \
-        -hold \
-        -from [get_clocks original_clock*] \
-        -to [get_clocks original_clock*] \
-        -slack_lesser_than -0.4 \
-        -nworst 999 -max_paths 999 -quiet \
-    ]
-    for {set i 0} {${i} < [llength ${timing_paths}]} {incr i} {
-        set timing_path [lindex ${timing_paths} ${i}]
-        dbg_puts "Reslove hold path: ${timing_path}"
-        set shifted_cells [tardil::reslove_hold_slack ${timing_path}]
-        if {[llength ${shifted_cells}] > 0} {
-            set exist_hold_violation true
-            break
+    set exist_hold_violation 1
+    while ${exist_hold_violation} {
+        set exist_hold_violation 0
+        set timing_paths [get_timing_paths \
+            -hold \
+            -from [get_clocks original_clock*] \
+            -to [get_clocks original_clock*] \
+            -slack_lesser_than -0.0 \
+            -nworst 999 -max_paths 999 -quiet \
+        ]
+        for {set i 0} {${i} < [llength ${timing_paths}]} {incr i} {
+            set timing_path [lindex ${timing_paths} ${i}]
+            dbg_puts "Reslove hold path: ${timing_path}"
+            set shifted_cells [tardil::reslove_hold_slack ${timing_path}]
+            if {[llength ${shifted_cells}] > 0} {
+                set exist_hold_violation 1
+                break
+            }
         }
     }
-
-    ## set exist_hold_violation true
-    ## while ${exist_hold_violation} {
-    ##     set exist_hold_violation false
-    ##     set timing_paths [get_timing_paths \
-    ##         -hold \
-    ##         -from [get_clocks original_clock*] \
-    ##         -to [get_clocks original_clock*] \
-    ##         -slack_lesser_than -0.4 \
-    ##         -nworst 999 -max_paths 999 -quiet \
-    ##     ]
-    ##     for {set i 0} {${i} < [llength ${timing_paths}]} {incr i} {
-    ##         set timing_path [lindex ${timing_paths} ${i}]
-    ##         dbg_puts "Reslove hold path: ${timing_path}"
-    ##         set shifted_cells [tardil::reslove_hold_slack ${timing_path}]
-    ##         if {[llength ${shifted_cells}] > 0} {
-    ##             set exist_hold_violation true
-    ##             break
-    ##         }
-    ##     }
-    ## }
 
     #foreach timing_path ${timing_paths} {
     #    puts [get_property SLACK ${timing_path}]
