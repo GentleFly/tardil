@@ -483,16 +483,16 @@ proc ::tardil::reslove_setup_slack {args} {
             set startpoint_shift [expr ${startpoint_shift_cnt}*${startpoint_shift_step}]
             dbg_puts "    Startpoint shift: ${startpoint_shift}"
             set sts [expr $sum_of_slack(setup,to,startpoint) - (${startpoint_shift}*$path_cnt(setup,to,startpoint))]
-            set sfs [expr $sum_of_slack(setup,from,startpoint) + (${startpoint_shift}*$path_cnt(setup,to,startpoint))]
+            set sfs [expr $sum_of_slack(setup,from,startpoint) + (${startpoint_shift}*$path_cnt(setup,from,startpoint))]
             set hts [expr $sum_of_slack(hold,to,startpoint) + (${startpoint_shift}*$path_cnt(hold,to,startpoint))]
-            set hfs [expr $sum_of_slack(hold,from,startpoint) - (${startpoint_shift}*$path_cnt(hold,to,startpoint))]
+            set hfs [expr $sum_of_slack(hold,from,startpoint) - (${startpoint_shift}*$path_cnt(hold,from,startpoint))]
 
             set endpoint_shift [expr ${endpoint_shift_cnt}*${endpoint_shift_step}]
             dbg_puts "    Endpoint shift: ${endpoint_shift}"
             set sfe [expr $sum_of_slack(setup,from,endpoint) - (${endpoint_shift}*$path_cnt(setup,from,endpoint))]
-            set ste [expr $sum_of_slack(setup,to,endpoint) + (${endpoint_shift}*$path_cnt(setup,from,endpoint))]
+            set ste [expr $sum_of_slack(setup,to,endpoint) + (${endpoint_shift}*$path_cnt(setup,to,endpoint))]
             set hfe [expr $sum_of_slack(hold,from,endpoint) + (${endpoint_shift}*$path_cnt(hold,from,endpoint))]
-            set hte [expr $sum_of_slack(hold,to,endpoint) - (${endpoint_shift}*$path_cnt(hold,from,endpoint))]
+            set hte [expr $sum_of_slack(hold,to,endpoint) - (${endpoint_shift}*$path_cnt(hold,to,endpoint))]
 
             set weight [tcl::mathfunc::min \
                 ${sts} \
@@ -567,6 +567,130 @@ proc ::tardil::reslove_setup_slack {args} {
     array unset timing_paths
     array unset params
     return ${shifted_cells}
+}
+
+proc ::tardil::get_weight {args} {
+    dbg_puts [info level 0]
+    set options {
+        { "setup"             "for setup fix" }
+        { "hold"              "for hold fix" }
+        { "clock_shift.arg" 0 "Clock Shift Step in degree (180, 90, 60, ... ). Default:" }
+    }
+    set usage ": [info level 0] \[options] <-setup|-hold> <cell|port> \noptions:"
+    array set params [::cmdline::getoptions args ${options} ${usage}]
+    if {[lsearch -regexp ${args} {-[a-zA-Z0-9]+}] > -1} {
+        error [::cmdline::usage ${options} ${usage}]
+    }
+    if { $params(setup)==1 && $params(hold)==1 } {
+        puts "Error: You need only one options -setup or -hold!"
+        error [::cmdline::usage ${options} ${usage}]
+    } elseif { $params(setup)==0 && $params(hold)==0 } {
+        set params(setup) 1
+    }
+    set argument [lindex ${args} 0]
+    set args [lreplace ${args} 0 0]
+    if {[llength ${argument}] != 1} {
+        error [::cmdline::usage ${options} ${usage}]
+    }
+    if {[llength ${args}] != 0} {
+        error [::cmdline::usage ${options} ${usage}]
+    }
+    dbg_puts "Parameters resolved"
+
+    set point [get_pins -leaf -quiet ${argument}]
+    if { [llength ${point}] == 0 } {
+        set point [get_cells -leaf -quiet ${argument}]
+    }
+    if { [llength ${point}] == 0 } {
+        set point [get_ports -quiet ${argument}]
+    }
+    if { [llength ${point}] != 1} {
+        error "Conunt of points not equal 1: ${point}"
+    }
+    set class [get_property CLASS ${point}]
+    dbg_puts "${class} : ${point}"
+
+    switch ${class} {
+        pin     {
+            if {![get_property IS_CLOCK]} {
+                error "Pin is not clock pin: ${point}"
+            }
+            set clock_pin ${point}
+            set cell [get_cells [get_property PARRENT_CELL ${point}]]
+        }
+        cell    {
+            set clock_pin [get_pins -filter {IS_CLOCK==true && REF_PIN_NAME==C} -of_objects ${point}]
+            if {[llength ${clock_pin}] != 1} {
+                error "Clock pin not deteced for cell: ${point}"
+            }
+            set cell ${point}
+        }
+        port    {
+            error "?!?!?!?!"
+        }
+        default {
+            error "?!?!?!?!"
+        }
+    }
+    dbg_puts "Clock pin: ${clock_pin}"
+    dbg_puts "Cell: ${cell}"
+
+    set clk [get_clocks -of_objects ${clock_pin}]
+    if {[llength ${clk}] != 1} {
+        error "Conunt of clocks not equal 1, on pin: ${clock_pin}"
+    }
+
+    set period [get_property PERIOD ${clk}]
+    dbg_puts "Clock: ${clk}, period: ${period}"
+    
+    set shift [expr ${period}*($params(clock_shift)/360.0)]
+    dbg_puts "Clock shift: ${shift} ns"
+
+    set timing_paths(setup,to)   [get_timing_paths -setup -filter {CORNER==Slow} -to   ${cell} -max_paths 99999 -nworst 9999 -quiet]
+    set timing_paths(hold,to)    [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${cell} -max_paths 99999 -nworst 9999 -quiet]
+    set timing_paths(setup,from) [get_timing_paths -setup -filter {CORNER==Slow} -from ${cell} -max_paths 99999 -nworst 9999 -quiet]
+    set timing_paths(hold,from)  [get_timing_paths -hold  -filter {CORNER==Fast} -from ${cell} -max_paths 99999 -nworst 9999 -quiet]
+
+    foreach tp [array names timing_paths] {
+        dbg_puts "    Timing path: ${tp}"
+        set path_cnt(${tp})     [llength $timing_paths(${tp})]
+        dbg_puts "        path_cnt: $path_cnt(${tp})"
+        set min_slack(${tp})     [get_property SLACK -min $timing_paths(${tp})]
+        dbg_puts "        min_slack: $min_slack(${tp})"
+        set slacks(${tp})        [get_property SLACK $timing_paths(${tp})]
+        dbg_puts "        slack:    $slacks(${tp})"
+    }
+    foreach tp [array names timing_paths] {
+        if { [lindex $slacks(${tp}) 0] == ""} {
+            error "Error: Not founded slacks (${tp}) for ${cell}. Check your constraints!"
+        }
+        set sum_of_slack(${tp}) [::tcl::mathop::+ {*}$slacks(${tp})]
+        dbg_puts "        sum_of_slack: $sum_of_slack(${tp})"
+    }
+
+    set st [expr ($sum_of_slack(setup,to)   + (${shift}*$path_cnt(setup,to)) )]
+    if {$params(hold) && ${st} < 0}  {
+        set st -9999999
+    }
+    dbg_puts "      ${st}"
+    set sf [expr ($sum_of_slack(setup,from) - (${shift}*$path_cnt(setup,to)) )]
+    if {$params(hold) && ${sf} < 0}  {
+        set sf -9999999
+    }
+    dbg_puts "      ${sf}"
+    set ht [expr ($sum_of_slack(hold,to)    - (${shift}*$path_cnt(hold,to))  )]
+    dbg_puts "      ${ht}"
+    set hf [expr ($sum_of_slack(hold,from)  + (${shift}*$path_cnt(hold,to))  )]
+    dbg_puts "      ${hf}"
+
+    set weight [tcl::mathfunc::min \
+        ${st} \
+        ${sf} \
+        ${ht} \
+        ${hf} \
+    ]
+    dbg_puts "    Weight: ${weight}"
+    return ${weight}
 }
 
 proc ::tardil::reslove_hold_slack {args} {
@@ -701,22 +825,22 @@ proc ::tardil::reslove_hold_slack {args} {
                 dbg_puts "    Startpoint shift: ${startpoint_shift}"
                 set sts [expr $sum_of_slack(setup,to,startpoint) + (${startpoint_shift}*$path_cnt(setup,to,startpoint))]
                 #dbg_puts "      ${sts}"
-                set sfs [expr $sum_of_slack(setup,from,startpoint) - (${startpoint_shift}*$path_cnt(setup,to,startpoint))]
+                set sfs [expr $sum_of_slack(setup,from,startpoint) - (${startpoint_shift}*$path_cnt(setup,from,startpoint))]
                 #dbg_puts "      ${sfs}"
                 set hts [expr $sum_of_slack(hold,to,startpoint) - (${startpoint_shift}*$path_cnt(hold,to,startpoint))]
                 #dbg_puts "      ${hts}"
-                set hfs [expr $sum_of_slack(hold,from,startpoint) + (${startpoint_shift}*$path_cnt(hold,to,startpoint))]
+                set hfs [expr $sum_of_slack(hold,from,startpoint) + (${startpoint_shift}*$path_cnt(hold,from,startpoint))]
                 #dbg_puts "      ${hfs}"
 
                 set endpoint_shift [expr ${endpoint_shift_cnt}*${endpoint_shift_step}]
                 dbg_puts "    Endpoint shift: ${endpoint_shift}"
                 set sfe [expr $sum_of_slack(setup,from,endpoint) + (${endpoint_shift}*$path_cnt(setup,from,endpoint))]
                 #dbg_puts "      ${sfe}"
-                set ste [expr $sum_of_slack(setup,to,endpoint) - (${endpoint_shift}*$path_cnt(setup,from,endpoint))]
+                set ste [expr $sum_of_slack(setup,to,endpoint) - (${endpoint_shift}*$path_cnt(setup,to,endpoint))]
                 #dbg_puts "      ${ste}"
                 set hfe [expr $sum_of_slack(hold,from,endpoint) - (${endpoint_shift}*$path_cnt(hold,from,endpoint))]
                 #dbg_puts "      ${hfe}"
-                set hte [expr $sum_of_slack(hold,to,endpoint) + (${endpoint_shift}*$path_cnt(hold,from,endpoint))]
+                set hte [expr $sum_of_slack(hold,to,endpoint) + (${endpoint_shift}*$path_cnt(hold,to,endpoint))]
                 #dbg_puts "      ${hte}"
 
                 set weight [tcl::mathfunc::min \
