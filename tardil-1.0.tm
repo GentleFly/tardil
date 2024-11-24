@@ -437,41 +437,21 @@ proc ::tardil::reslove_setup_slack {args} {
         error "Start cell and end cell is same!"
     }
 
-    set timing_paths(setup,to,startpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -to   ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(hold,to,startpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(setup,from,startpoint) [get_timing_paths -setup -filter {CORNER==Slow} -from ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(hold,from,startpoint)  [get_timing_paths -hold  -filter {CORNER==Fast} -from ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(setup,to,endpoint)     [get_timing_paths -setup -filter {CORNER==Slow} -to   ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(hold,to,endpoint)      [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(setup,from,endpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -from ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(hold,from,endpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -from ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
-    dbg_puts "Timing paths: [array get timing_paths]"
-
-    foreach tp [array names timing_paths] {
-        dbg_puts "    Timing path: ${tp}"
-        set path_cnt(${tp})     [llength $timing_paths(${tp})]
-        dbg_puts "        path_cnt: $path_cnt(${tp})"
-        set min_slack(${tp})     [get_property SLACK -min $timing_paths(${tp})]
-        dbg_puts "        min_slack: $min_slack(${tp})"
-        set slacks(${tp})        [get_property SLACK $timing_paths(${tp})]
-        dbg_puts "        slack:    $slacks(${tp})"
-    }
-    foreach tp [array names timing_paths] {
-        if { [lindex $slacks(${tp}) 0] == ""} {
-            error "Error: Not founded slacks to ${startpoint_cell}. Check your constraints!"
-        }
-        set sum_of_slack(${tp}) [::tcl::mathop::+ {*}$slacks(${tp})]
-        dbg_puts "        sum_of_slack: $sum_of_slack(${tp})"
-    }
-
     set setup_slack [get_property SLACK ${timing_path}]
     dbg_puts "Setup Slack: ${setup_slack}"
     set hold_slack [get_property SLACK [get_timing_paths -hold -from ${startpoint_cell} -to ${endpoint_cell}]]
     dbg_puts "Hold Slack: ${hold_slack}"
 
     if { ${setup_slack} >= 0 } {
+        dbg_puts "Path have not negative setup slack! Path: ${timing_path}"
         return [list]
     }
+
+    ::tardil::pattern_to_name_and_shift ${startpoint_clock} startpoint_origin_clock startpoint_current_shfit
+    dbg_puts "${startpoint_clock}: ${startpoint_origin_clock} ${startpoint_current_shfit}"
+    ::tardil::pattern_to_name_and_shift   ${endpoint_clock}   endpoint_origin_clock   endpoint_current_shfit
+    dbg_puts "${endpoint_clock}: ${endpoint_origin_clock} ${endpoint_current_shfit}"
+
     set cnt_step [expr int(abs(${setup_slack})/${startpoint_shift_step}) + 1]
     if {${startpoint_clock} == ${endpoint_clock}} {
         for {set i 0} {${i} < ${cnt_step}+1} {incr i} {
@@ -482,27 +462,13 @@ proc ::tardil::reslove_setup_slack {args} {
 
             set startpoint_shift [expr ${startpoint_shift_cnt}*${startpoint_shift_step}]
             dbg_puts "    Startpoint shift: ${startpoint_shift}"
-            set sts [expr $sum_of_slack(setup,to,startpoint) - (${startpoint_shift}*$path_cnt(setup,to,startpoint))]
-            set sfs [expr $sum_of_slack(setup,from,startpoint) + (${startpoint_shift}*$path_cnt(setup,from,startpoint))]
-            set hts [expr $sum_of_slack(hold,to,startpoint) + (${startpoint_shift}*$path_cnt(hold,to,startpoint))]
-            set hfs [expr $sum_of_slack(hold,from,startpoint) - (${startpoint_shift}*$path_cnt(hold,from,startpoint))]
 
             set endpoint_shift [expr ${endpoint_shift_cnt}*${endpoint_shift_step}]
             dbg_puts "    Endpoint shift: ${endpoint_shift}"
-            set sfe [expr $sum_of_slack(setup,from,endpoint) - (${endpoint_shift}*$path_cnt(setup,from,endpoint))]
-            set ste [expr $sum_of_slack(setup,to,endpoint) + (${endpoint_shift}*$path_cnt(setup,to,endpoint))]
-            set hfe [expr $sum_of_slack(hold,from,endpoint) + (${endpoint_shift}*$path_cnt(hold,from,endpoint))]
-            set hte [expr $sum_of_slack(hold,to,endpoint) - (${endpoint_shift}*$path_cnt(hold,to,endpoint))]
 
             set weight [tcl::mathfunc::min \
-                ${sts} \
-                ${sfs} \
-                ${hts} \
-                ${hfs} \
-                ${sfe} \
-                ${ste} \
-                ${hfe} \
-                ${hte} \
+                [::tardil::get_weight -setup -clock_shift ${startpoint_shift} ${startpoint_cell}] \
+                [::tardil::get_weight -setup -clock_shift ${endpoint_shift}   ${endpoint_cell}] \
             ]
             dbg_puts "    Weight: ${weight}"
 
@@ -519,11 +485,6 @@ proc ::tardil::reslove_setup_slack {args} {
             }
         }
     } else {
-        ::tardil::pattern_to_name_and_shift ${startpoint_clock} startpoint_origin_clock startpoint_current_shfit
-        dbg_puts "${startpoint_clock}: ${startpoint_origin_clock} ${startpoint_current_shfit}"
-        ::tardil::pattern_to_name_and_shift   ${endpoint_clock}   endpoint_origin_clock   endpoint_current_shfit
-        dbg_puts "${endpoint_clock}: ${endpoint_origin_clock} ${endpoint_current_shfit}"
-
         if       { ${startpoint_current_shfit} == 0 && ${endpoint_current_shfit} != 0 } {
             set selected_startpoint_shift_cnt ${cnt_step}
             set selected_endpoint_shift_cnt 0
