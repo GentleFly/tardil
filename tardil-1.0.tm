@@ -407,7 +407,7 @@ proc ::tardil::get_weight {args} {
     set options {
         { "setup"             "for setup fix" }
         { "hold"              "for hold fix" }
-        { "clock_shift.arg" 0 "Clock Shift Step in degree (180, 90, 60, ... ). Default:" }
+        { "clock_shift.arg" 0 "Clock Shift in ns. Default:" }
     }
     set usage ": [info level 0] \[options] <cell|port> \noptions:"
     array set params [::cmdline::getoptions args ${options} ${usage}]
@@ -476,7 +476,8 @@ proc ::tardil::get_weight {args} {
     set period [get_property PERIOD ${clk}]
     dbg_puts "Clock: ${clk}, period: ${period}"
     
-    set shift [expr ${period}*($params(clock_shift)/360.0)]
+    #set shift [expr ${period}*($params(clock_shift)/360.0)]
+    set shift $params(clock_shift)
     dbg_puts "Clock shift: ${shift} ns"
 
     set timing_paths(setup,to)   [get_timing_paths -setup -filter {CORNER==Slow} -to   ${cell} -max_paths 99999 -nworst 9999 -quiet]
@@ -502,18 +503,18 @@ proc ::tardil::get_weight {args} {
     }
 
     set st [expr ($sum_of_slack(setup,to)   + (${shift}*$path_cnt(setup,to)) )]
+    dbg_puts "      ${st}"
     if {$params(hold) && ${st} < 0}  {
         set st -9999999
     }
-    dbg_puts "      ${st}"
-    set sf [expr ($sum_of_slack(setup,from) - (${shift}*$path_cnt(setup,to)) )]
+    set sf [expr ($sum_of_slack(setup,from) - (${shift}*$path_cnt(setup,from)) )]
+    dbg_puts "      ${sf}"
     if {$params(hold) && ${sf} < 0}  {
         set sf -9999999
     }
-    dbg_puts "      ${sf}"
     set ht [expr ($sum_of_slack(hold,to)    - (${shift}*$path_cnt(hold,to))  )]
     dbg_puts "      ${ht}"
-    set hf [expr ($sum_of_slack(hold,from)  + (${shift}*$path_cnt(hold,to))  )]
+    set hf [expr ($sum_of_slack(hold,from)  + (${shift}*$path_cnt(hold,from))  )]
     dbg_puts "      ${hf}"
 
     set weight [tcl::mathfunc::min \
@@ -833,28 +834,28 @@ proc ::tardil::reslove {} {
         set timing_path [get_timing_paths -from [get_clocks original_clock*] -to [get_clocks original_clock*] -slack_lesser_than 0 -quiet]
     }
 
-    #set exist_hold_violation 1
-    #while {${exist_hold_violation} == 1} {
-    #    set exist_hold_violation 0
-    #    set timing_paths [get_timing_paths \
-    #        -hold \
-    #        -from [get_clocks original_clock*] \
-    #        -to [get_clocks original_clock*] \
-    #        -slack_lesser_than -0.2 \
-    #        -nworst 999 -max_paths 999 -quiet \
-    #    ]
-    #    for {set i 0} {${i} < [llength ${timing_paths}]} {incr i} {
-    #        set timing_path [lindex ${timing_paths} ${i}]
-    #        incr tp(${timing_path})
-    #        dbg_puts "Reslove hold path: ${timing_path}"
-    #        set shifted_cells [tardil::reslove_hold_slack ${timing_path}]
-    #        if {[llength ${shifted_cells}] > 0} {
-    #            dbg_puts "  Shifted cells: ${shifted_cells}"
-    #            set exist_hold_violation 1
-    #            break
-    #        }
-    #    }
-    #}
+    set exist_hold_violation 1
+    while {${exist_hold_violation} == 1} {
+        set exist_hold_violation 0
+        set timing_paths [get_timing_paths \
+            -hold \
+            -from [get_clocks original_clock*] \
+            -to [get_clocks original_clock*] \
+            -slack_lesser_than -0.2 \
+            -nworst 999 -max_paths 999 -quiet \
+        ]
+        for {set i 0} {${i} < [llength ${timing_paths}]} {incr i} {
+            set timing_path [lindex ${timing_paths} ${i}]
+            incr tp(${timing_path})
+            dbg_puts "Reslove hold path: ${timing_path}"
+            set shifted_cells [tardil::reslove_hold_slack ${timing_path}]
+            if {[llength ${shifted_cells}] > 0} {
+                dbg_puts "  Shifted cells: ${shifted_cells}"
+                set exist_hold_violation 1
+                break
+            }
+        }
+    }
 
 }
 
@@ -897,7 +898,7 @@ set_clock_latency \\
 #set ::tardil::debug 99
 #::tardil::init
 #::tardil::init -debug 99
-::tardil::init -debug 3
+::tardil::init -debug 1
 
 #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove_setup_slack [get_timing_paths]
 #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove
