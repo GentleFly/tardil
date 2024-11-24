@@ -863,6 +863,8 @@ proc ::tardil::generate {args} {
     variable prefix
     dbg_puts [info level 0]
 
+    set strings [list]
+
     set clocks [lsort -uniq [get_clocks -regexp "(.*)_${prefix}_(n|p)\[0-9]*"]]
     dbg_puts "Finded clocks: ${clocks}"
 
@@ -870,12 +872,14 @@ proc ::tardil::generate {args} {
     foreach clock_000 ${clocks_000} {
 
         regexp "(.*)_${prefix}_(n|p)\[0-9]*" ${clock_000} match orig_clock_name
+        set strigns [lappend strigns "\n# ${orig_clock_name}"]
+
         dbg_puts "Original clock name: ${orig_clock_name}"
         set pin_o [get_pins -leaf -filter {direction==out} -of_objects [get_clocks ${clock_000}]]
         set pin_i [get_pins "[get_cells -of_objects ${pin_o}]/I"]
         dbg_puts "Pins for orig clock: ${pin_o}, ${pin_i}"
 
-        puts "
+        set strigns [lappend strigns "
 create_generated_clock \\
     -name ${clock_000} \\
     -divide_by 1 \\
@@ -885,14 +889,62 @@ set_clock_latency \\
     -source \\
     -clock ${clock_000} \\
     0 \\
-    \[get_pins ${pin_o}\]
-        "
+    \[get_pins ${pin_o}\]"]
 
         set clks [lsearch -regexp -inline -all ${clocks} "${orig_clock_name}_${prefix}_(n|p)\[0-9]*"]
         foreach clk ${clks} {
-        }
-    }
+            dbg_puts "Clock: ${clk}"
+            ::tardil::pattern_to_name_and_shift ${clk} original_clock current_shfit
+            dbg_puts "  Cuttenr shift ${current_shfit} for clock ${original_clock}"
+            set orig_clock_period [get_property period [get_clocks ${original_clock}]]
+            dbg_puts "  Detected original clock: ${original_clock} (${orig_clock_period})"
+            set target_shifted_clock_latency [expr ${orig_clock_period}*(${current_shfit}/360.0)]
+            dbg_puts "  Latency for clock: ${target_shifted_clock_latency}"
 
+            set strigns [lappend strigns "
+create_generated_clock \\
+    -add -divide_by 1 \\
+    -name ${clk} \\
+    -master \[get_clocks ${original_clock}\] \\
+    -source \[get_pins ${pin_i}\] \\
+    \[get_pins ${pin_o}\] 
+set_clock_latency \\
+    -source \\
+    -clock ${clk} \\
+    ${target_shifted_clock_latency} \\
+    \[get_pins ${pin_o}\]"]
+
+            set pins(${clk}) [get_pins \
+                    -of_objects [get_nets \
+                    -segments \
+                    -of_objects  [get_clocks ${clk}] \
+                ] \
+                -filter {direction==in && is_leaf}]
+        }
+
+        dbg_puts "Stop propogation:"
+        set clocks_on_pins [array names pins]
+        foreach clk [lsort -dictionary [array names pins]] {
+            dbg_puts "  Clock: ${clk}"
+            #set clocks_on_pins [lsort -dictionary -unique [get_clocks -of_objects [get_pins $pins(${clk})]]]
+            dbg_puts "    Clocks on pins: ${clocks_on_pins}"
+            set index [lsearch ${clocks_on_pins} "${clk}"]
+            set stop_clocks [lreplace ${clocks_on_pins} ${index} ${index}]
+            dbg_puts "    Clocks for stop: ${stop_clocks}"
+            set strigns [lappend strigns "
+set_clock_sense \\
+    -stop_propagation -quiet \\
+    -clocks { ${stop_clocks} } \\
+    { $pins(${clk}) }"]
+        }
+
+        array unset pins
+        #puts [join ${strigns} {\n}]
+        #foreach str ${strigns} {
+        #    puts ${str}
+        #}
+    }
+    return [join ${strigns}]
 }
 
 #set ::tardil::debug 99
