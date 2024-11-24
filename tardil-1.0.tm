@@ -176,7 +176,7 @@ proc ::tardil::connect_to_clock {args} {
                 dbg_puts "  Detected needed clock: ${current_shifted_clock_name}"
             } elseif {[regexp "(.*)_${prefix}_(n|p)\[0-9]*" ${clock_on_pin} match orig_clock_name]} {
                 set current_shifted_clock_name ${clock_on_pin}
-                dbg_puts "  Detected sifted clock: ${current_shifted_clock_name}"
+                dbg_puts "  Detected shifted clock: ${current_shifted_clock_name}"
             } else {
                 set orig_clock_name ${clock_on_pin}
             }
@@ -576,7 +576,7 @@ proc ::tardil::get_weight {args} {
         { "hold"              "for hold fix" }
         { "clock_shift.arg" 0 "Clock Shift Step in degree (180, 90, 60, ... ). Default:" }
     }
-    set usage ": [info level 0] \[options] <-setup|-hold> <cell|port> \noptions:"
+    set usage ": [info level 0] \[options] <cell|port> \noptions:"
     array set params [::cmdline::getoptions args ${options} ${usage}]
     if {[lsearch -regexp ${args} {-[a-zA-Z0-9]+}] > -1} {
         error [::cmdline::usage ${options} ${usage}]
@@ -753,58 +753,15 @@ proc ::tardil::reslove_hold_slack {args} {
         error "Start cell and end cell is same!"
     }
 
-    set timing_paths(setup,to,startpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -to   ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(hold,to,startpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(setup,from,startpoint) [get_timing_paths -setup -filter {CORNER==Slow} -from ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(hold,from,startpoint)  [get_timing_paths -hold  -filter {CORNER==Fast} -from ${startpoint_cell} -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(setup,to,endpoint)     [get_timing_paths -setup -filter {CORNER==Slow} -to   ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(hold,to,endpoint)      [get_timing_paths -hold  -filter {CORNER==Fast} -to   ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(setup,from,endpoint)   [get_timing_paths -setup -filter {CORNER==Slow} -from ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
-    set timing_paths(hold,from,endpoint)    [get_timing_paths -hold  -filter {CORNER==Fast} -from ${endpoint_cell}   -max_paths 99999 -nworst 9999 -quiet]
-    dbg_puts "Timing paths: [array get timing_paths]"
-    #parray timing_paths
-    foreach tp [array names timing_paths] {
-        if {$timing_paths(${tp}) == ""} {
-            unset timing_paths(${tp})
-        }
-    }
-    #parray timing_paths
-
-
-    foreach tp [array names timing_paths] {
-        dbg_puts "    Timing path: ${tp}"
-        set path_cnt(${tp})     [llength $timing_paths(${tp})]
-        dbg_puts "        path_cnt: $path_cnt(${tp})"
-        set min_slack(${tp})     [get_property SLACK -min $timing_paths(${tp})]
-        dbg_puts "        min_slack: $min_slack(${tp})"
-        set slacks(${tp})        [get_property SLACK $timing_paths(${tp})]
-        dbg_puts "        slack:    $slacks(${tp})"
-    }
-    foreach tp [array names timing_paths] {
-        if { [lindex $slacks(${tp}) 0] == ""} {
-            error "Error: Not founded slacks to ${startpoint_cell}. Check your constraints!"
-        }
-        set sum_of_slack(${tp}) [::tcl::mathop::+ {*}$slacks(${tp})]
-        dbg_puts "        sum_of_slack: $sum_of_slack(${tp})"
-    }
-
-    set setup_slack [get_property SLACK [get_timing_paths -setup -from ${startpoint_cell} -to ${endpoint_cell} ]]
-    dbg_puts "Setup Slack: ${setup_slack}"
-    set hold_slack [get_property SLACK ${timing_path}]
+    set setup_slack [get_property SLACK [get_timing_paths -setup -through [join [get_pins -of_objects ${timing_path}] " -through " ] -quiet]]
+    dbg_puts "Setup Slack: ${setup_slack}"                                                                                                 
+    set hold_slack  [get_property SLACK [get_timing_paths -hold  -through [join [get_pins -of_objects ${timing_path}] " -through " ] -quiet]]
     dbg_puts "Hold Slack: ${hold_slack}"
 
     set cnt_step [expr int(abs(${hold_slack})/${startpoint_shift_step}) + 1]
     dbg_puts "Count of step for fix slack: ${cnt_step}"
     if { ${hold_slack} >= 0 } {
         dbg_puts "Path have not negative hold slack! Path: ${timing_path}"
-        return [list]
-    }
-    if { $min_slack(setup,from,startpoint) < [expr (${cnt_step} * ${startpoint_shift_step})] } {
-        dbg_puts "Path have setup slack from startpoint less then negative hold slack! Path: ${timing_path}"
-        return [list]
-    }
-    if { $min_slack(setup,to,endpoint) < [expr (${cnt_step} * ${startpoint_shift_step})] } {
-        dbg_puts "Path have setup slack to endpoint less then negative hold slack! Path: ${timing_path}"
         return [list]
     }
 
@@ -814,75 +771,36 @@ proc ::tardil::reslove_hold_slack {args} {
     dbg_puts "${endpoint_clock}: ${endpoint_origin_clock} ${endpoint_current_shfit}"
 
     if { ${startpoint_class} == "cell" && ${endpoint_class} == "cell" } {
-        if { ${startpoint_current_shfit} == ${endpoint_current_shfit} } {
-            for {set i 0} {${i} < ${cnt_step}+1} {incr i} {
-                set startpoint_shift_cnt ${i}
-                set endpoint_shift_cnt [expr ${cnt_step} - ${i}]
-                dbg_puts "Step for startpoint and step for endpoint: \[${startpoint_shift_cnt} : ${endpoint_shift_cnt}\]"
+        set weight [tcl::mathfunc::min \
+            [::tardil::get_weight -hold -clock_shift 0 ${startpoint_cell}] \
+            [::tardil::get_weight -hold -clock_shift 0 ${endpoint_cell}] \
+        ]
+        set best_weight ${weight}
+        set selected_startpoint_shift_cnt 0
+        set selected_endpoint_shift_cnt 0
+
+        for {set i 0} {${i} < ${cnt_step}+1} {incr i} {
+            set startpoint_shift_cnt ${i}
+            set endpoint_shift_cnt [expr ${cnt_step} - ${i}]
+            dbg_puts "Step for startpoint and step for endpoint: \[${startpoint_shift_cnt} : ${endpoint_shift_cnt}\]"
 
 
-                set startpoint_shift [expr ${startpoint_shift_cnt}*${startpoint_shift_step}]
-                dbg_puts "    Startpoint shift: ${startpoint_shift}"
-                set sts [expr $sum_of_slack(setup,to,startpoint) + (${startpoint_shift}*$path_cnt(setup,to,startpoint))]
-                #dbg_puts "      ${sts}"
-                set sfs [expr $sum_of_slack(setup,from,startpoint) - (${startpoint_shift}*$path_cnt(setup,from,startpoint))]
-                #dbg_puts "      ${sfs}"
-                set hts [expr $sum_of_slack(hold,to,startpoint) - (${startpoint_shift}*$path_cnt(hold,to,startpoint))]
-                #dbg_puts "      ${hts}"
-                set hfs [expr $sum_of_slack(hold,from,startpoint) + (${startpoint_shift}*$path_cnt(hold,from,startpoint))]
-                #dbg_puts "      ${hfs}"
+            set startpoint_shift [expr ${startpoint_shift_cnt}*${startpoint_shift_step}]
+            dbg_puts "    Startpoint shift: ${startpoint_shift}"
+            set endpoint_shift [expr ${endpoint_shift_cnt}*${endpoint_shift_step}]
+            dbg_puts "    Endpoint shift: ${endpoint_shift}"
 
-                set endpoint_shift [expr ${endpoint_shift_cnt}*${endpoint_shift_step}]
-                dbg_puts "    Endpoint shift: ${endpoint_shift}"
-                set sfe [expr $sum_of_slack(setup,from,endpoint) + (${endpoint_shift}*$path_cnt(setup,from,endpoint))]
-                #dbg_puts "      ${sfe}"
-                set ste [expr $sum_of_slack(setup,to,endpoint) - (${endpoint_shift}*$path_cnt(setup,to,endpoint))]
-                #dbg_puts "      ${ste}"
-                set hfe [expr $sum_of_slack(hold,from,endpoint) - (${endpoint_shift}*$path_cnt(hold,from,endpoint))]
-                #dbg_puts "      ${hfe}"
-                set hte [expr $sum_of_slack(hold,to,endpoint) + (${endpoint_shift}*$path_cnt(hold,to,endpoint))]
-                #dbg_puts "      ${hte}"
+            set weight [tcl::mathfunc::min \
+                [::tardil::get_weight -hold -clock_shift ${startpoint_shift} ${startpoint_cell}] \
+                [::tardil::get_weight -hold -clock_shift ${endpoint_shift}   ${endpoint_cell}] \
+            ]
+            dbg_puts "    Weight: ${weight}"
 
-                set weight [tcl::mathfunc::min \
-                    ${sts} \
-                    ${sfs} \
-                    ${hts} \
-                    ${hfs} \
-                    ${sfe} \
-                    ${ste} \
-                    ${hfe} \
-                    ${hte} \
-                ]
-                dbg_puts "    Weight: ${weight}"
-
-                if { [info exist best_weight] } {
-                    if { ${best_weight} < ${weight} } {
-                        set best_weight ${weight}
-                        set selected_startpoint_shift_cnt ${startpoint_shift_cnt}
-                        set selected_endpoint_shift_cnt ${endpoint_shift_cnt}
-                    }
-                } else {
-                    set best_weight ${weight}
-                    set selected_startpoint_shift_cnt ${startpoint_shift_cnt}
-                    set selected_endpoint_shift_cnt ${endpoint_shift_cnt}
-                }
+            if { ${best_weight} < ${weight} } {
+                set best_weight ${weight}
+                set selected_startpoint_shift_cnt ${startpoint_shift_cnt}
+                set selected_endpoint_shift_cnt ${endpoint_shift_cnt}
             }
-        } elseif  { ${startpoint_current_shfit} == 0 && ${endpoint_current_shfit} != 0 } {
-            set selected_startpoint_shift_cnt ${cnt_step}
-            set selected_endpoint_shift_cnt 0
-        } elseif { ${startpoint_current_shfit} != 0 && ${endpoint_current_shfit} == 0 } {
-            set selected_startpoint_shift_cnt 0
-            set selected_endpoint_shift_cnt ${cnt_step}
-        } elseif { ${startpoint_current_shfit} < ${endpoint_current_shfit} } {
-            set selected_startpoint_shift_cnt ${cnt_step}
-            set selected_endpoint_shift_cnt 0
-        } elseif { ${startpoint_current_shfit} > ${endpoint_current_shfit} } {
-            set selected_startpoint_shift_cnt 0
-            set selected_endpoint_shift_cnt ${cnt_step}
-        } else {
-            puts "Start point current shfit: ${startpoint_current_shfit}"
-            puts "End point current shfit: ${endpoint_current_shfit}"
-            error "Not witten...."
         }
     } elseif { ${startpoint_class} == "port" && ${endpoint_class} == "cell" } {
         set selected_startpoint_shift_cnt 0
@@ -939,33 +857,35 @@ proc ::tardil::reslove {} {
         set timing_path [get_timing_paths -from [get_clocks original_clock*] -to [get_clocks original_clock*] -slack_lesser_than 0 -quiet]
     }
 
-    ## set exist_hold_violation 1
-    ## while ${exist_hold_violation} {
-    ##     set exist_hold_violation 0
-    ##     set timing_paths [get_timing_paths \
-    ##         -hold \
-    ##         -from [get_clocks original_clock*] \
-    ##         -to [get_clocks original_clock*] \
-    ##         -slack_lesser_than -0.0 \
-    ##         -nworst 999 -max_paths 999 -quiet \
-    ##     ]
-    ##     for {set i 0} {${i} < [llength ${timing_paths}]} {incr i} {
-    ##         set timing_path [lindex ${timing_paths} ${i}]
-    ##         dbg_puts "Reslove hold path: ${timing_path}"
-    ##         set shifted_cells [tardil::reslove_hold_slack ${timing_path}]
-    ##         if {[llength ${shifted_cells}] > 0} {
-    ##             set exist_hold_violation 1
-    ##             break
-    ##         }
-    ##     }
-    ## }
+    set exist_hold_violation 1
+    while {${exist_hold_violation} == 1} {
+        set exist_hold_violation 0
+        set timing_paths [get_timing_paths \
+            -hold \
+            -from [get_clocks original_clock*] \
+            -to [get_clocks original_clock*] \
+            -slack_lesser_than -0.2 \
+            -nworst 999 -max_paths 999 -quiet \
+        ]
+        for {set i 0} {${i} < [llength ${timing_paths}]} {incr i} {
+            set timing_path [lindex ${timing_paths} ${i}]
+            incr tp(${timing_path})
+            dbg_puts "Reslove hold path: ${timing_path}"
+            set shifted_cells [tardil::reslove_hold_slack ${timing_path}]
+            if {[llength ${shifted_cells}] > 0} {
+                dbg_puts "  Shifted cells: ${shifted_cells}"
+                set exist_hold_violation 1
+                break
+            }
+        }
+    }
 
 }
 
 #set ::tardil::debug 99
 #::tardil::init
 #::tardil::init -debug 99
-::tardil::init -debug 99
+::tardil::init -debug 1
 
 #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove_setup_slack [get_timing_paths]
 #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove
