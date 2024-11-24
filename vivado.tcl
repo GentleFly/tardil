@@ -39,6 +39,9 @@ synth_design \
 # for convert to IS_INVERTED=true on register's clock pin
 opt_design
 
+# phys_opt_design -directive ExploreWithHoldFix
+
+
 report_timing_summary \
   -delay_type min_max \
   -report_unconstrained \

@@ -900,11 +900,18 @@ set_clock_latency \\
             dbg_puts "  Detected original clock: ${original_clock} (${orig_clock_period})"
             set target_shifted_clock_latency [expr ${orig_clock_period}*(${current_shfit}/360.0)]
             dbg_puts "  Latency for clock: ${target_shifted_clock_latency}"
+            set inverted [expr fmod( ${current_shfit}/180, 2)]
+            dbg_puts "  Clock is inverted: ${inverted}"
+            if {${inverted}} {
+                set strign_inverted "-invert"
+            } else {
+                set strign_inverted ""
+            }
 
             if { ${clock_000} != ${clk} } {
                 set strigns [lappend strigns "
 create_generated_clock \\
-    -add -divide_by 1 \\
+    -add -divide_by 1 ${strign_inverted} \\
     -name ${clk} \\
     -master \[get_clocks ${original_clock}\] \\
     -source \[get_pins ${pin_i}\] \\
@@ -938,6 +945,16 @@ set_clock_sense \\
     -stop_propagation -quiet \\
     -clocks { ${stop_clocks} } \\
     { $pins(${clk}) }"]
+        }
+
+        foreach clk [lsort -dictionary [array names pins]] {
+            dbg_puts "  Clock: ${clk}"
+            ::tardil::pattern_to_name_and_shift ${clk} original_clock current_shfit
+            set inverted [expr fmod( ${current_shfit}/180, 2)]
+            dbg_puts "  Clock is inverted: ${inverted}"
+            if {${inverted}} {
+                set strigns [lappend strigns "\nset_property IS_INVERTED 1 \[get_pins { $pins(${clk}) }\]"]
+            }
         }
 
         array unset pins
