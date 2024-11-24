@@ -362,9 +362,7 @@ proc ::tardil::check_changes_window {timing_path} {
     } else {
         dbg_puts "Timing path: ${timing_path}"
     }
-    if { [get_property DELAY_TYPE ${timing_path}] == "min" } {
-        set timing_path [get_timing_paths -quiet -setup -through [join [get_pins -of_objects ${timing_path}] " -through " ]]
-    }
+    set pins [get_pins -of_objects ${timing_path}]
 
     set startpoint_cell   [get_property PARENT_CELL [get_property STARTPOINT_PIN ${timing_path}]]
     set startpoint_period [get_property PERIOD [get_property STARTPOINT_CLOCK ${timing_path}]]
@@ -374,18 +372,33 @@ proc ::tardil::check_changes_window {timing_path} {
     set endpoint_period [get_property PERIOD [get_property ENDPOINT_CLOCK ${timing_path}]]
     dbg_puts "End point period: ${endpoint_period}"
 
-    set max_delay [get_property DATAPATH_DELAY ${timing_path}]
+    set timing_path_setup [get_timing_paths -quiet -setup -filter {CORNER==Slow} -through [join ${pins} " -through " ]]
+    dbg_puts "Timing path setup: ${timing_path_setup}"
+    set timing_path_hold  [get_timing_paths -quiet -hold  -filter {CORNER==Fast} -through [join ${pins} " -through " ]]
+    dbg_puts "Timing path hold: ${timing_path_hold}"
+
+    set max_delay_slack [get_property SLACK ${timing_path_setup}]
+    dbg_puts "Max delay slack: ${max_delay_slack}"
+    set min_delay_slack [get_property SLACK ${timing_path_hold}]
+    dbg_puts "Min delay slack: ${min_delay_slack}"
+
+    set slack_window [expr ${max_delay_slack} + ${min_delay_slack}]
+    dbg_puts "Slack window: ${slack_window}"
+    if { ${slack_window} < 0.300 } {
+        puts "Warning: Slack window is less than 0.300ns! slack_setup(${max_delay_slack}) + slack_hold(${min_delay_slack}) = ${slack_window} < 0.300. On path: ${timing_path}"
+    }
+
+    set max_delay [get_property DATAPATH_DELAY ${timing_path_setup}]
     dbg_puts "Max delay: ${max_delay}"
-    #set min_delay [get_property DATAPATH_DELAY [get_timing_paths -hold -through [get_pins -of_objects ${timing_path}]]]
-    set min_delay [get_property DATAPATH_DELAY [get_timing_paths -quiet -hold -through [join [get_pins -of_objects ${timing_path}] " -through " ]]]
+    set min_delay [get_property DATAPATH_DELAY ${timing_path_hold}]
     dbg_puts "Min delay: ${min_delay}"
 
     set startpoint_changes_window [expr ${max_delay} - ${min_delay}]
     dbg_puts "Changes window: ${startpoint_changes_window}"
-
     if { ${startpoint_changes_window} > ${startpoint_period} } {
         error "Error: Changes window is more than clock period!"
     }
+
     return
 }
 
@@ -538,6 +551,8 @@ proc ::tardil::reslove_setup_slack {args} {
         error [::cmdline::usage ${options} ${usage}]
     }
     dbg_puts "Parameters resolved"
+
+    ::tardil::check_changes_window ${timing_path}
 
     set startpoint_cell   [get_property PARENT_CELL [get_property STARTPOINT_PIN ${timing_path}]]
     dbg_puts "Start point: ${startpoint_cell}"
@@ -818,26 +833,62 @@ proc ::tardil::reslove {} {
         set timing_path [get_timing_paths -from [get_clocks original_clock*] -to [get_clocks original_clock*] -slack_lesser_than 0 -quiet]
     }
 
-    set exist_hold_violation 1
-    while {${exist_hold_violation} == 1} {
-        set exist_hold_violation 0
-        set timing_paths [get_timing_paths \
-            -hold \
-            -from [get_clocks original_clock*] \
-            -to [get_clocks original_clock*] \
-            -slack_lesser_than -0.2 \
-            -nworst 999 -max_paths 999 -quiet \
-        ]
-        for {set i 0} {${i} < [llength ${timing_paths}]} {incr i} {
-            set timing_path [lindex ${timing_paths} ${i}]
-            incr tp(${timing_path})
-            dbg_puts "Reslove hold path: ${timing_path}"
-            set shifted_cells [tardil::reslove_hold_slack ${timing_path}]
-            if {[llength ${shifted_cells}] > 0} {
-                dbg_puts "  Shifted cells: ${shifted_cells}"
-                set exist_hold_violation 1
-                break
-            }
+    #set exist_hold_violation 1
+    #while {${exist_hold_violation} == 1} {
+    #    set exist_hold_violation 0
+    #    set timing_paths [get_timing_paths \
+    #        -hold \
+    #        -from [get_clocks original_clock*] \
+    #        -to [get_clocks original_clock*] \
+    #        -slack_lesser_than -0.2 \
+    #        -nworst 999 -max_paths 999 -quiet \
+    #    ]
+    #    for {set i 0} {${i} < [llength ${timing_paths}]} {incr i} {
+    #        set timing_path [lindex ${timing_paths} ${i}]
+    #        incr tp(${timing_path})
+    #        dbg_puts "Reslove hold path: ${timing_path}"
+    #        set shifted_cells [tardil::reslove_hold_slack ${timing_path}]
+    #        if {[llength ${shifted_cells}] > 0} {
+    #            dbg_puts "  Shifted cells: ${shifted_cells}"
+    #            set exist_hold_violation 1
+    #            break
+    #        }
+    #    }
+    #}
+
+}
+
+proc ::tardil::generate {args} {
+    variable prefix
+    dbg_puts [info level 0]
+
+    set clocks [lsort -uniq [get_clocks -regexp "(.*)_${prefix}_(n|p)\[0-9]*"]]
+    dbg_puts "Finded clocks: ${clocks}"
+
+    set clocks_000 [lsearch -regexp -inline -all ${clocks} "(.*)_${prefix}_(n|p)000\[0-0]*"]
+    foreach clock_000 ${clocks_000} {
+
+        regexp "(.*)_${prefix}_(n|p)\[0-9]*" ${clock_000} match orig_clock_name
+        dbg_puts "Original clock name: ${orig_clock_name}"
+        set pin_o [get_pins -leaf -filter {direction==out} -of_objects [get_clocks ${clock_000}]]
+        set pin_i [get_pins "[get_cells -of_objects ${pin_o}]/I"]
+        dbg_puts "Pins for orig clock: ${pin_o}, ${pin_i}"
+
+        puts "
+create_generated_clock \\
+    -name ${clock_000} \\
+    -divide_by 1 \\
+    -source \[get_pins ${pin_i}\] \\
+    \[get_pins ${pin_o}\] 
+set_clock_latency \\
+    -source \\
+    -clock ${clock_000} \\
+    0 \\
+    \[get_pins ${pin_o}\]
+        "
+
+        set clks [lsearch -regexp -inline -all ${clocks} "${orig_clock_name}_${prefix}_(n|p)\[0-9]*"]
+        foreach clk ${clks} {
         }
     }
 
@@ -846,9 +897,10 @@ proc ::tardil::reslove {} {
 #set ::tardil::debug 99
 #::tardil::init
 #::tardil::init -debug 99
-::tardil::init -debug 1
+::tardil::init -debug 3
 
 #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove_setup_slack [get_timing_paths]
 #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove
 #close_design ; close_project ; read_checkpoint ./checkpoint_1.dcp ; link_design
+
 
