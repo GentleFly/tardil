@@ -901,7 +901,8 @@ set_clock_latency \\
             set target_shifted_clock_latency [expr ${orig_clock_period}*(${current_shfit}/360.0)]
             dbg_puts "  Latency for clock: ${target_shifted_clock_latency}"
 
-            set strigns [lappend strigns "
+            if { ${clock_000} != ${clk} } {
+                set strigns [lappend strigns "
 create_generated_clock \\
     -add -divide_by 1 \\
     -name ${clk} \\
@@ -913,6 +914,7 @@ set_clock_latency \\
     -clock ${clk} \\
     ${target_shifted_clock_latency} \\
     \[get_pins ${pin_o}\]"]
+            }
 
             set pins(${clk}) [get_pins \
                     -of_objects [get_nets \
