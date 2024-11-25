@@ -81,8 +81,10 @@ proc ::tardil::clone_bufg {args} {
         error "Error: instance maby only one!"
     }
     #if { [get_property ORIG_REF_NAME ${bufg_inst}] != "BUFG" || [get_property IS_PRIMITIVE ${bufg_inst}] != "true"} { }
-    if { [get_property ORIG_REF_NAME ${bufg_inst}] != "BUFG"} {
-        error "Error: instance maby only BUFG!"
+    if { [get_property ORIG_REF_NAME ${bufg_inst}] == "BUFG"} {
+    } elseif { [get_property ORIG_REF_NAME ${bufg_inst}] == "BUFGCE"} {
+    } else {
+        error "Error: instance maby only BUFG or BUFGCE!"
     }
 
     set parrent [get_property PARENT [get_cells ${bufg_inst}]]
@@ -188,11 +190,11 @@ proc ::tardil::connect_to_clock {args} {
             set source_clock_bufg [\
                 get_cell -of_objects [\
                 get_pins \
-                -filter {direction==out && is_leaf==true && ref_name==BUFG} \
-                -of_objects  [\
-                get_nets -segments -of_objects ${register_clock_pin} \
-                ]\
-                ]\
+                    -filter {direction==out && is_leaf==true && ref_name=~"BUFG*"} \
+                        -of_objects  [\
+                            get_nets -segments -of_objects ${register_clock_pin} \
+                        ]\
+                    ]\
                 ]
             dbg_puts "  Source clock bufg: ${source_clock_bufg}"
             if { ${current_shifted_clock_name} == "" } {
@@ -228,7 +230,7 @@ proc ::tardil::connect_to_clock {args} {
                 set src_inst [\
                     get_cell -of_objects [\
                         get_pins \
-                            -filter {direction==out && is_leaf==true && ref_name==BUFG} \
+                            -filter {direction==out && is_leaf==true && ref_name=~"BUFG*"} \
                             -of_objects [get_clocks ${target_shifted_clock_name}] \
                     ]\
                 ]

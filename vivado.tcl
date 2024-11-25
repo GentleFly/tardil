@@ -31,16 +31,14 @@ foreach c ${constraints} {
 }
 
 # origin:  -part xc7k325tffg676-2
+# origin:  -part xc7k325tffg676-2
+# origin:  -part xcvu19p-fsvb3824-2-e
 synth_design \
-  -part xc7k325tffg676-2 \
+  -part xcvu19p-fsvb3824-2-e \
   -top top \
   -mode out_of_context
 
-# for convert to IS_INVERTED=true on register's clock pin
 opt_design
-
-# phys_opt_design -directive ExploreWithHoldFix
-
 
 report_timing_summary \
   -delay_type min_max \
@@ -51,4 +49,8 @@ report_timing_summary \
   -name timing_1
 
 write_checkpoint ./syn.dcp -force
+
+# place_design
+# phys_opt_design -directive ExploreWithHoldFix
+# route_design
 
