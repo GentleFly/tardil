@@ -11,7 +11,8 @@ if { [current_project -quiet] != "" } {
 }
 
 #set_part xc7k325tffg676-2
-set_part xcvu19p-fsvb3824-2-e
+set_part xcvu9p-flga2104-2L-e
+#set_part xcvu19p-fsvb3824-2-e
 
 set files { \
   ./inv.sv \

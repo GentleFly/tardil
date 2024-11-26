@@ -834,6 +834,9 @@ proc ::tardil::reslove_hold_slack {args} {
 
 proc ::tardil::reslove {} {
 
+    # vivado
+    config_timing_pessimism -common_node off
+
     set timing_path [get_timing_paths -from [get_clocks original_clock*] -to [get_clocks original_clock*] -slack_lesser_than 0 -quiet]
     while {[llength ${timing_path}] > 0} {
         dbg_puts "Reslove steup path: ${timing_path}"
@@ -863,12 +866,22 @@ proc ::tardil::reslove {} {
             dbg_puts "Reslove hold path: ${timing_path}"
             set shifted_cells [tardil::reslove_hold_slack ${timing_path}]
             if {[llength ${shifted_cells}] > 0} {
-                dbg_puts "  Shifted cells: ${shifted_cells}"
-                set exist_hold_violation 1
+                foreach shifted_cell ${shifted_cells} {
+                  incr shifted(${shifted_cell})
+                  dbg_puts "  Shifted cell: ${shifted_cells}"
+                  dbg_puts "    Cell was shifted: $shifted(${shifted_cell})"
+                  if { $shifted(${shifted_cell}) < 10 } {
+                    set exist_hold_violation 1
+                  } else {
+                    set exist_hold_violation 0
+                    dbg_puts "    Not resloved ?"
+                  }
+                }
                 break
             }
         }
     }
+    array unset shifted
 
 }
 
@@ -885,6 +898,7 @@ proc ::tardil::generate {args} {
     foreach clock_000 ${clocks_000} {
 
         regexp "(.*)_${prefix}_(n|p)\[0-9]*" ${clock_000} match orig_clock_name
+        set strigns [lappend strigns "\n# vivado: config_timing_pessimism -common_node off"]
         set strigns [lappend strigns "\n# ${orig_clock_name}"]
 
         dbg_puts "Original clock name: ${orig_clock_name}"
