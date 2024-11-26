@@ -205,6 +205,15 @@ proc ::tardil::connect_to_clock {args} {
                     -source [get_pins ${source_clock_bufg}/I] \
                     [get_pins ${source_clock_bufg}/O]
                 dbg_puts "  Created generated clock: \"${orig_clock_name}_${prefix}_p0000\""
+                set_clock_latency \
+                    -verbose \
+                    -source \
+                    -clock [get_clocks "${orig_clock_name}_${prefix}_p0000"]\
+                    0.0 \
+                    [get_pins ${source_clock_bufg}/O]
+                dbg_puts "  Added latency for clock: ${target_shifted_clock_latency}"
+
+                # config_timing_pessimism -common_node off
             }
             if {[llength [get_clocks -quiet ${target_shifted_clock_name}]] == 0 } {
 
@@ -226,6 +235,8 @@ proc ::tardil::connect_to_clock {args} {
                     ${target_shifted_clock_latency} \
                     [get_pins ${src_inst}/O]
                 dbg_puts "  Added latency for clock: ${target_shifted_clock_latency}"
+
+                # config_timing_pessimism -common_node off
             } else {
                 set src_inst [\
                     get_cell -of_objects [\
@@ -976,5 +987,6 @@ set_clock_sense \\
 #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove_setup_slack [get_timing_paths]
 #namespace delete tardil; source ./tardil-1.0.tm; tardil::reslove
 #close_design ; close_project ; read_checkpoint ./checkpoint_1.dcp ; link_design
+# config_timing_pessimism -common_node off
 
 
