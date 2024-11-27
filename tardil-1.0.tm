@@ -915,6 +915,8 @@ proc ::tardil::generate_with_latency {args} {
         set pin_i [get_pins "[get_cells -of_objects ${pin_o}]/I"]
         dbg_puts "Pins for orig clock: ${pin_o}, ${pin_i}"
 
+
+        set add "-add"
         set clks [lsearch -regexp -inline -all ${clocks} "${orig_clock_name}_${prefix}_(n|p)\[0-9]*"]
         foreach clk ${clks} {
             dbg_puts "Clock: ${clk}"
@@ -931,13 +933,10 @@ proc ::tardil::generate_with_latency {args} {
             } else {
                 set strign_inverted ""
             }
-
             if { ${clock_000} == ${clk} } {
-                set add ""
                 set strign_inverted ""
-            } else {
-                set add "-add"
             }
+
             set strigns [lappend strigns "
 create_generated_clock -name ${clk} \\
     -divide_by 1 ${add} ${strign_inverted} \\
@@ -950,6 +949,7 @@ set_clock_latency -clock ${clk} \\
     \[get_pins ${pin_o}\]
 "]
 
+            set add "-add"
             set pins(${clk}) [get_pins \
                     -of_objects [get_nets \
                     -segments \
@@ -1017,6 +1017,7 @@ proc ::tardil::generate_with_multicycle {args} {
         set pin_i [get_pins "[get_cells -of_objects ${pin_o}]/I"]
         dbg_puts "Pins for orig clock: ${pin_o}, ${pin_i}"
 
+        set add "-add"
         set clks [lsearch -regexp -inline -all ${clocks} "${orig_clock_name}_${prefix}_(n|p)\[0-9]*"]
         foreach clk ${clks} {
             dbg_puts "Clock: ${clk}"
@@ -1033,12 +1034,8 @@ proc ::tardil::generate_with_multicycle {args} {
             } else {
                 set strign_inverted ""
             }
-
             if { ${clock_000} == ${clk} } {
-                set add ""
                 set strign_inverted ""
-            } else {
-                set add "-add"
             }
             set strigns [lappend strigns "
 create_generated_clock -name ${clk} \\
@@ -1048,6 +1045,7 @@ create_generated_clock -name ${clk} \\
     \[get_pins ${pin_o}\] 
 "]
 
+            set add "-add"
             set pins(${clk}) [get_pins \
                     -of_objects [get_nets \
                     -segments \
