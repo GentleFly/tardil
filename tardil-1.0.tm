@@ -211,7 +211,7 @@ proc ::tardil::connect_to_clock {args} {
                     -clock [get_clocks "${orig_clock_name}_${prefix}_p0000"]\
                     0.0 \
                     [get_pins ${source_clock_bufg}/O]
-                dbg_puts "  Added latency for clock: ${target_shifted_clock_latency}"
+                dbg_puts "  Added latency for clock: 0.0"
 
                 # config_timing_pessimism -common_node off
             }
