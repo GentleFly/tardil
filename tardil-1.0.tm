@@ -1029,14 +1029,15 @@ proc ::tardil::generate_with_multicycle {args} {
             dbg_puts "  Latency for clock: ${target_shifted_clock_latency}"
             set inverted [expr fmod( ${current_shift}/180, 2)]
             dbg_puts "  Clock is inverted: ${inverted}"
-            if {${inverted}} {
-                set strign_inverted "-invert"
-            } else {
-                set strign_inverted ""
-            }
-            if { ${clock_000} == ${clk} } {
-                set strign_inverted ""
-            }
+            # if {${inverted}} {
+            #     set strign_inverted "-invert"
+            # } else {
+            #     set strign_inverted ""
+            # }
+            # if { ${clock_000} == ${clk} } {
+            #     set strign_inverted ""
+            # }
+            set strign_inverted ""
             set strigns [lappend strigns "
 create_generated_clock -name ${clk} \\
     -divide_by 1 ${add} ${strign_inverted} \\
@@ -1110,7 +1111,7 @@ set_multicycle_path ${max_multicycle_path} -to   \[get_clocks *_${prefix}_*\]
     foreach current_shift ${shifts} {
         set another_shifts ${shifts}
         foreach another_shift ${another_shifts} {
-            if { ${current_shift} <= ${another_shift} } {
+            if { ${current_shift} <= ${another_shift} + 359 } {
                 # get sign
                 if { ${current_shift} < 0 } {
                     set sign_current_shift "n"
@@ -1138,7 +1139,11 @@ set_multicycle_path ${max_multicycle_path} -to   \[get_clocks *_${prefix}_*\]
                 dbg_puts "      ${current_shift} -> ${another_shift}"
                 set diff [expr abs(${current_shift} - ${another_shift})]
                 dbg_puts "        diff shifts: ${diff}"
-                set cnt_cycles [expr ((${diff}+359)/360) + 1]
+                if { ${current_shift} > ${another_shift} } {
+                    set cnt_cycles 1
+                } else {
+                    set cnt_cycles [expr ((${diff}+359)/360) + 1]
+                }
                 dbg_puts "        count of cycles: ${cnt_cycles}"
                 set strigns [lappend strigns "\n# \"${current_shift}\" -> \"${another_shift}\"; diff: ${diff}; count of cycles: ${cnt_cycles}"]
 

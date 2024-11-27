@@ -4,7 +4,7 @@
 # Extended Useful Skew for clock: original_clock
  
 create_generated_clock -name original_clock_tardil_n0180 \
-    -divide_by 1 -add -invert \
+    -divide_by 1 -add  \
     -master [get_clocks original_clock] \
     -source [get_pins clocks_inst/BUFG_inst0/I] \
     [get_pins clocks_inst/BUFG_inst0/O] 
@@ -16,7 +16,7 @@ create_generated_clock -name original_clock_tardil_p0000 \
     [get_pins clocks_inst/BUFG_inst0/O] 
  
 create_generated_clock -name original_clock_tardil_p0180 \
-    -divide_by 1 -add -invert \
+    -divide_by 1 -add  \
     -master [get_clocks original_clock] \
     -source [get_pins clocks_inst/BUFG_inst0/I] \
     [get_pins clocks_inst/BUFG_inst0/O] 
@@ -55,6 +55,11 @@ set_multicycle_path 1 -hold -from [get_clocks {*_tardil_n0180}] -to [get_clocks 
 # "-180" -> "180"; diff: 360; count of cycles: 2 
 set_multicycle_path 2 -setup -from [get_clocks {*_tardil_n0180}] -to [get_clocks {*_tardil_p0180}]
 set_multicycle_path 1 -hold -from [get_clocks {*_tardil_n0180}] -to [get_clocks {*_tardil_p0180}] 
+# "0" -> "-180"; diff: 180; count of cycles: 1 
+set_multicycle_path 1 -setup -from [get_clocks {*_tardil_p0000 original_clock}] -to [get_clocks {*_tardil_n0180}]
+set_multicycle_path 0 -hold -from [get_clocks {*_tardil_p0000 original_clock}] -to [get_clocks {*_tardil_n0180}] 
+set_multicycle_path 1 -setup -from [get_clocks -regexp -filter "NAME!~.*_tardil_.*"] -to [get_clocks {*_tardil_n0180}]
+set_multicycle_path 0 -hold -from [get_clocks -regexp -filter "NAME!~.*_tardil_.*"] -to [get_clocks {*_tardil_n0180}] 
 # "0" -> "0"; diff: 0; count of cycles: 1 
 set_multicycle_path 1 -setup -from [get_clocks {*_tardil_p0000 original_clock}] -to [get_clocks {*_tardil_p0000 original_clock}]
 set_multicycle_path 0 -hold -from [get_clocks {*_tardil_p0000 original_clock}] -to [get_clocks {*_tardil_p0000 original_clock}] 
@@ -67,6 +72,11 @@ set_multicycle_path 2 -setup -from [get_clocks {*_tardil_p0000 original_clock}] 
 set_multicycle_path 1 -hold -from [get_clocks {*_tardil_p0000 original_clock}] -to [get_clocks {*_tardil_p0180}] 
 set_multicycle_path 2 -setup -from [get_clocks -regexp -filter "NAME!~.*_tardil_.*"] -to [get_clocks {*_tardil_p0180}]
 set_multicycle_path 1 -hold -from [get_clocks -regexp -filter "NAME!~.*_tardil_.*"] -to [get_clocks {*_tardil_p0180}] 
+# "180" -> "0"; diff: 180; count of cycles: 1 
+set_multicycle_path 1 -setup -from [get_clocks {*_tardil_p0180}] -to [get_clocks {*_tardil_p0000 original_clock}]
+set_multicycle_path 0 -hold -from [get_clocks {*_tardil_p0180}] -to [get_clocks {*_tardil_p0000 original_clock}] 
+set_multicycle_path 1 -setup -from [get_clocks {*_tardil_p0180}] -to [get_clocks -regexp -filter "NAME!~.*_tardil_.*"]
+set_multicycle_path 0 -hold -from [get_clocks {*_tardil_p0180}] -to [get_clocks -regexp -filter "NAME!~.*_tardil_.*"] 
 # "180" -> "180"; diff: 0; count of cycles: 1 
 set_multicycle_path 1 -setup -from [get_clocks {*_tardil_p0180}] -to [get_clocks {*_tardil_p0180}]
 set_multicycle_path 0 -hold -from [get_clocks {*_tardil_p0180}] -to [get_clocks {*_tardil_p0180}]
