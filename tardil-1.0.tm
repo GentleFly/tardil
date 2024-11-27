@@ -294,6 +294,12 @@ proc ::tardil::pattern_to_name_and_shift {clock_name original_clock curr_shift} 
         } elseif { ${sign} == "n"} {
             set current_shift [expr 0 - ${step}]
         }
+    } elseif {[regexp "(.*)_${prefix}_(n|p)0*(0)" ${clock_name} match orig_clock sign step]} {
+        if { ${sign} == "p" } {
+            set current_shift [expr 0 + ${step}]
+        } elseif { ${sign} == "n"} {
+            set current_shift [expr 0 - ${step}]
+        }
     } else {
         set orig_clock ${clock_name}
         set current_shift 0
