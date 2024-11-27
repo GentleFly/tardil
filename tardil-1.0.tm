@@ -607,10 +607,10 @@ proc ::tardil::resolve_setup_slack {args} {
         return [list]
     }
 
-    ::tardil::pattern_to_name_and_shift ${startpoint_clock} startpoint_origin_clock startpoint_current_shfit
-    dbg_puts "${startpoint_clock}: ${startpoint_origin_clock} ${startpoint_current_shfit}"
-    ::tardil::pattern_to_name_and_shift   ${endpoint_clock}   endpoint_origin_clock   endpoint_current_shfit
-    dbg_puts "${endpoint_clock}: ${endpoint_origin_clock} ${endpoint_current_shfit}"
+    ::tardil::pattern_to_name_and_shift ${startpoint_clock} startpoint_origin_clock startpoint_current_shift
+    dbg_puts "${startpoint_clock}: ${startpoint_origin_clock} ${startpoint_current_shift}"
+    ::tardil::pattern_to_name_and_shift   ${endpoint_clock}   endpoint_origin_clock   endpoint_current_shift
+    dbg_puts "${endpoint_clock}: ${endpoint_origin_clock} ${endpoint_current_shift}"
 
     set cnt_step [expr int(abs(${setup_slack})/${startpoint_shift_step}) + 1]
     if {${startpoint_clock} == ${endpoint_clock}} {
@@ -645,16 +645,16 @@ proc ::tardil::resolve_setup_slack {args} {
             }
         }
     } else {
-        if       { ${startpoint_current_shfit} == 0 && ${endpoint_current_shfit} != 0 } {
+        if       { ${startpoint_current_shift} == 0 && ${endpoint_current_shift} != 0 } {
             set selected_startpoint_shift_cnt ${cnt_step}
             set selected_endpoint_shift_cnt 0
-        } elseif { ${startpoint_current_shfit} != 0 && ${endpoint_current_shfit} == 0 } {
+        } elseif { ${startpoint_current_shift} != 0 && ${endpoint_current_shift} == 0 } {
             set selected_startpoint_shift_cnt 0
             set selected_endpoint_shift_cnt ${cnt_step}
-        } elseif { ${startpoint_current_shfit} < ${endpoint_current_shfit} } {
+        } elseif { ${startpoint_current_shift} < ${endpoint_current_shift} } {
             set selected_startpoint_shift_cnt ${cnt_step}
             set selected_endpoint_shift_cnt 0
-        } elseif { ${startpoint_current_shfit} > ${endpoint_current_shfit} } {
+        } elseif { ${startpoint_current_shift} > ${endpoint_current_shift} } {
             set selected_startpoint_shift_cnt 0
             set selected_endpoint_shift_cnt ${cnt_step}
         } else {
@@ -762,10 +762,10 @@ proc ::tardil::resolve_hold_slack {args} {
         return [list]
     }
 
-    ::tardil::pattern_to_name_and_shift ${startpoint_clock} startpoint_origin_clock startpoint_current_shfit
-    dbg_puts "${startpoint_clock}: ${startpoint_origin_clock} ${startpoint_current_shfit}"
-    ::tardil::pattern_to_name_and_shift   ${endpoint_clock}   endpoint_origin_clock   endpoint_current_shfit
-    dbg_puts "${endpoint_clock}: ${endpoint_origin_clock} ${endpoint_current_shfit}"
+    ::tardil::pattern_to_name_and_shift ${startpoint_clock} startpoint_origin_clock startpoint_current_shift
+    dbg_puts "${startpoint_clock}: ${startpoint_origin_clock} ${startpoint_current_shift}"
+    ::tardil::pattern_to_name_and_shift   ${endpoint_clock}   endpoint_origin_clock   endpoint_current_shift
+    dbg_puts "${endpoint_clock}: ${endpoint_origin_clock} ${endpoint_current_shift}"
 
     if { ${startpoint_class} == "cell" && ${endpoint_class} == "cell" } {
         set weight [tcl::mathfunc::min \
@@ -917,13 +917,13 @@ proc ::tardil::generate_with_latency {args} {
         set clks [lsearch -regexp -inline -all ${clocks} "${orig_clock_name}_${prefix}_(n|p)\[0-9]*"]
         foreach clk ${clks} {
             dbg_puts "Clock: ${clk}"
-            ::tardil::pattern_to_name_and_shift ${clk} original_clock current_shfit
-            dbg_puts "  Cuttenr shift ${current_shfit} for clock ${original_clock}"
+            ::tardil::pattern_to_name_and_shift ${clk} original_clock current_shift
+            dbg_puts "  Cuttenr shift ${current_shift} for clock ${original_clock}"
             set orig_clock_period [get_property period [get_clocks ${original_clock}]]
             dbg_puts "  Detected original clock: ${original_clock} (${orig_clock_period})"
-            set target_shifted_clock_latency [expr ${orig_clock_period}*(${current_shfit}/360.0)]
+            set target_shifted_clock_latency [expr ${orig_clock_period}*(${current_shift}/360.0)]
             dbg_puts "  Latency for clock: ${target_shifted_clock_latency}"
-            set inverted [expr fmod( ${current_shfit}/180, 2)]
+            set inverted [expr fmod( ${current_shift}/180, 2)]
             dbg_puts "  Clock is inverted: ${inverted}"
             if {${inverted}} {
                 set strign_inverted "-invert"
@@ -976,8 +976,8 @@ set_clock_sense \\
 
         foreach clk [lsort -dictionary [array names pins]] {
             dbg_puts "  Clock: ${clk}"
-            ::tardil::pattern_to_name_and_shift ${clk} original_clock current_shfit
-            set inverted [expr fmod( ${current_shfit}/180, 2)]
+            ::tardil::pattern_to_name_and_shift ${clk} original_clock current_shift
+            set inverted [expr fmod( ${current_shift}/180, 2)]
             dbg_puts "  Clock is inverted: ${inverted}"
             if {${inverted}} {
                 set strigns [lappend strigns "\nset_property IS_INVERTED 1 \[get_pins { $pins(${clk}) }\]"]
@@ -995,6 +995,7 @@ set_clock_sense \\
 
 proc ::tardil::generate_with_multicycle {args} {
     variable prefix
+    variable max_multicycle_path
     dbg_puts [info level 0]
 
     set strings [list]
@@ -1006,36 +1007,24 @@ proc ::tardil::generate_with_multicycle {args} {
     foreach clock_000 ${clocks_000} {
 
         regexp "(.*)_${prefix}_(n|p)\[0-9]*" ${clock_000} match orig_clock_name
-        set strigns [lappend strigns "\n# vivado: config_timing_pessimism -common_node off"]
-        set strigns [lappend strigns "\n# ${orig_clock_name}"]
+        set strigns [lappend strigns "\n# File generated by command: [info level 0]"]
+        set strigns [lappend strigns "\n\n# Extendet Useful Skew for clock: ${orig_clock_name}\n"]
 
         dbg_puts "Original clock name: ${orig_clock_name}"
         set pin_o [get_pins -leaf -filter {direction==out} -of_objects [get_clocks ${clock_000}]]
         set pin_i [get_pins "[get_cells -of_objects ${pin_o}]/I"]
         dbg_puts "Pins for orig clock: ${pin_o}, ${pin_i}"
 
-        set strigns [lappend strigns "
-create_generated_clock \\
-    -name ${clock_000} \\
-    -divide_by 1 \\
-    -source \[get_pins ${pin_i}\] \\
-    \[get_pins ${pin_o}\] 
-set_clock_latency \\
-    -source \\
-    -clock ${clock_000} \\
-    0 \\
-    \[get_pins ${pin_o}\]"]
-
         set clks [lsearch -regexp -inline -all ${clocks} "${orig_clock_name}_${prefix}_(n|p)\[0-9]*"]
         foreach clk ${clks} {
             dbg_puts "Clock: ${clk}"
-            ::tardil::pattern_to_name_and_shift ${clk} original_clock current_shfit
-            dbg_puts "  Cuttenr shift ${current_shfit} for clock ${original_clock}"
+            ::tardil::pattern_to_name_and_shift ${clk} original_clock current_shift
+            dbg_puts "  Cuttenr shift ${current_shift} for clock ${original_clock}"
             set orig_clock_period [get_property period [get_clocks ${original_clock}]]
             dbg_puts "  Detected original clock: ${original_clock} (${orig_clock_period})"
-            set target_shifted_clock_latency [expr ${orig_clock_period}*(${current_shfit}/360.0)]
+            set target_shifted_clock_latency [expr ${orig_clock_period}*(${current_shift}/360.0)]
             dbg_puts "  Latency for clock: ${target_shifted_clock_latency}"
-            set inverted [expr fmod( ${current_shfit}/180, 2)]
+            set inverted [expr fmod( ${current_shift}/180, 2)]
             dbg_puts "  Clock is inverted: ${inverted}"
             if {${inverted}} {
                 set strign_inverted "-invert"
@@ -1043,20 +1032,19 @@ set_clock_latency \\
                 set strign_inverted ""
             }
 
-            if { ${clock_000} != ${clk} } {
-                set strigns [lappend strigns "
-create_generated_clock \\
-    -add -divide_by 1 ${strign_inverted} \\
-    -name ${clk} \\
+            if { ${clock_000} == ${clk} } {
+                set add ""
+                set strign_inverted ""
+            } else {
+                set add "-add"
+            }
+            set strigns [lappend strigns "
+create_generated_clock -name ${clk} \\
+    -divide_by 1 ${add} ${strign_inverted} \\
     -master \[get_clocks ${original_clock}\] \\
     -source \[get_pins ${pin_i}\] \\
     \[get_pins ${pin_o}\] 
-set_clock_latency \\
-    -source \\
-    -clock ${clk} \\
-    ${target_shifted_clock_latency} \\
-    \[get_pins ${pin_o}\]"]
-            }
+"]
 
             set pins(${clk}) [get_pins \
                     -of_objects [get_nets \
@@ -1079,13 +1067,14 @@ set_clock_latency \\
 set_clock_sense \\
     -stop_propagation -quiet \\
     -clocks { ${stop_clocks} } \\
-    { $pins(${clk}) }"]
+    { $pins(${clk}) }
+"]
         }
 
         foreach clk [lsort -dictionary [array names pins]] {
             dbg_puts "  Clock: ${clk}"
-            ::tardil::pattern_to_name_and_shift ${clk} original_clock current_shfit
-            set inverted [expr fmod( ${current_shfit}/180, 2)]
+            ::tardil::pattern_to_name_and_shift ${clk} original_clock current_shift
+            set inverted [expr fmod( ${current_shift}/180, 2)]
             dbg_puts "  Clock is inverted: ${inverted}"
             if {${inverted}} {
                 set strigns [lappend strigns "\nset_property IS_INVERTED 1 \[get_pins { $pins(${clk}) }\]"]
@@ -1098,6 +1087,45 @@ set_clock_sense \\
         #    puts ${str}
         #}
     }
+
+
+    dbg_puts "Multicycles:"
+    set strigns [lappend strigns "\n
+set_multicycle_path ${max_multicycle_path} -from \[get_clocks *_${prefix}_*\]
+set_multicycle_path ${max_multicycle_path} -to   \[get_clocks *_${prefix}_*\]
+"]
+
+    set shifts [list]
+    set clks [lsearch -regexp -inline -all ${clocks} ".*_${prefix}_(n|p)\[0-9]*"]
+    foreach clk ${clks} {
+        ::tardil::pattern_to_name_and_shift ${clk} original_clock current_shift
+        set shifts [lappend shifts ${current_shift}]
+    }
+    set shifts [lsort -dictionary -uniq ${shifts}]
+    dbg_puts "  Shifts: ${shifts}"
+    foreach current_shift ${shifts} {
+        set index [lsearch ${shifts} "${current_shift}"]
+        set another_shifts [lreplace ${shifts} ${index} ${index}]
+        foreach another_shift ${another_shifts} {
+            if { ${current_shift} <= ${another_shift} } {
+                puts "${current_shift} -> ${another_shift}"
+                set diff [expr abs(${current_shift} - ${another_shift})]
+                dbg_puts "      diff shifts: ${diff}"
+                if { ${diff} == 0 } {
+                  set cnt_cycles 1
+                } else {
+                  set cnt_cycles [expr (${diff}/360) + 2]
+                }
+                dbg_puts "      count of cycles: ${cnt_cycles}"
+                set start_name "*_${prefix}_${current_shift}"
+                set end_name   "*_${prefix}_${another_shift}"
+                set strigns [lappend strigns "
+set_multicycle_path ${cnt_cycles} -setup -from \[get_clocks ${start_name}\] -to \[get_clocks ${end_name}\]
+set_multicycle_path [expr ${cnt_cycles}-1] -hold -from \[get_clocks ${start_name}\] -to \[get_clocks ${end_name}\]"]
+            }
+        }
+    }
+
     return [join ${strigns}]
 }
 
@@ -1156,13 +1184,13 @@ set_multicycle_path [expr ${cnt_cycles}-1] -hold -from \[get_clocks ${clock_000}
 
         foreach clk ${clks} {
             dbg_puts "Clock: ${clk}"
-            ::tardil::pattern_to_name_and_shift ${clk} original_clock current_shfit
-            dbg_puts "  Cuttenr shift ${current_shfit} for clock ${original_clock}"
+            ::tardil::pattern_to_name_and_shift ${clk} original_clock current_shift
+            dbg_puts "  Cuttenr shift ${current_shift} for clock ${original_clock}"
             set orig_clock_period [get_property period [get_clocks ${original_clock}]]
             dbg_puts "  Detected original clock: ${original_clock} (${orig_clock_period})"
-            set target_shifted_clock_latency [expr ${orig_clock_period}*(${current_shfit}/360.0)]
+            set target_shifted_clock_latency [expr ${orig_clock_period}*(${current_shift}/360.0)]
             dbg_puts "  Latency for clock: ${target_shifted_clock_latency}"
-            set inverted [expr fmod( ${current_shfit}/180, 2)]
+            set inverted [expr fmod( ${current_shift}/180, 2)]
             dbg_puts "  Clock is inverted: ${inverted}"
             if {${inverted}} {
                 set strign_inverted "-invert"
@@ -1231,8 +1259,8 @@ set_clock_sense \\
 
         foreach clk [lsort -dictionary [array names pins]] {
             dbg_puts "  Clock: ${clk}"
-            ::tardil::pattern_to_name_and_shift ${clk} original_clock current_shfit
-            set inverted [expr fmod( ${current_shfit}/180, 2)]
+            ::tardil::pattern_to_name_and_shift ${clk} original_clock current_shift
+            set inverted [expr fmod( ${current_shift}/180, 2)]
             dbg_puts "  Clock is inverted: ${inverted}"
             if {${inverted}} {
                 set strigns [lappend strigns "\nset_property IS_INVERTED 1 \[get_pins { $pins(${clk}) }\]"]
