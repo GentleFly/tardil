@@ -906,24 +906,12 @@ proc ::tardil::generate_with_latency {args} {
 
         regexp "(.*)_${prefix}_(n|p)\[0-9]*" ${clock_000} match orig_clock_name
         set strigns [lappend strigns "\n# vivado: config_timing_pessimism -common_node off"]
-        set strigns [lappend strigns "\n# ${orig_clock_name}"]
+        set strigns [lappend strigns "\n\n# ${orig_clock_name}"]
 
         dbg_puts "Original clock name: ${orig_clock_name}"
         set pin_o [get_pins -leaf -filter {direction==out} -of_objects [get_clocks ${clock_000}]]
         set pin_i [get_pins "[get_cells -of_objects ${pin_o}]/I"]
         dbg_puts "Pins for orig clock: ${pin_o}, ${pin_i}"
-
-        set strigns [lappend strigns "
-create_generated_clock \\
-    -name ${clock_000} \\
-    -divide_by 1 \\
-    -source \[get_pins ${pin_i}\] \\
-    \[get_pins ${pin_o}\] 
-set_clock_latency \\
-    -source \\
-    -clock ${clock_000} \\
-    0 \\
-    \[get_pins ${pin_o}\]"]
 
         set clks [lsearch -regexp -inline -all ${clocks} "${orig_clock_name}_${prefix}_(n|p)\[0-9]*"]
         foreach clk ${clks} {
@@ -942,20 +930,23 @@ set_clock_latency \\
                 set strign_inverted ""
             }
 
-            if { ${clock_000} != ${clk} } {
-                set strigns [lappend strigns "
-create_generated_clock \\
-    -add -divide_by 1 ${strign_inverted} \\
-    -name ${clk} \\
+            if { ${clock_000} == ${clk} } {
+                set add ""
+                set strign_inverted ""
+            } else {
+                set add "-add"
+            }
+            set strigns [lappend strigns "
+create_generated_clock -name ${clk} \\
+    -divide_by 1 ${add} ${strign_inverted} \\
     -master \[get_clocks ${original_clock}\] \\
     -source \[get_pins ${pin_i}\] \\
     \[get_pins ${pin_o}\] 
-set_clock_latency \\
+set_clock_latency -clock ${clk} \\
     -source \\
-    -clock ${clk} \\
     ${target_shifted_clock_latency} \\
-    \[get_pins ${pin_o}\]"]
-            }
+    \[get_pins ${pin_o}\]
+"]
 
             set pins(${clk}) [get_pins \
                     -of_objects [get_nets \
@@ -978,7 +969,8 @@ set_clock_latency \\
 set_clock_sense \\
     -stop_propagation -quiet \\
     -clocks { ${stop_clocks} } \\
-    { $pins(${clk}) }"]
+    { $pins(${clk}) }
+"]
         }
 
         foreach clk [lsort -dictionary [array names pins]] {
