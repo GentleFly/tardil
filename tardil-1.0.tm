@@ -1106,19 +1106,29 @@ set_multicycle_path ${max_multicycle_path} -to   \[get_clocks *_${prefix}_*\]
     foreach current_shift ${shifts} {
         set index [lsearch ${shifts} "${current_shift}"]
         set another_shifts [lreplace ${shifts} ${index} ${index}]
+        if { ${current_shift} < 0 } {
+            set sign_current_shift "n"
+        } else {
+            set sign_current_shift "p"
+        }
         foreach another_shift ${another_shifts} {
+            if { ${another_shift} < 0 } {
+                set sign_another_shift "n"
+            } else {
+                set sign_another_shift "p"
+            }
             if { ${current_shift} <= ${another_shift} } {
-                puts "${current_shift} -> ${another_shift}"
+                dbg_puts "      ${current_shift} -> ${another_shift}"
                 set diff [expr abs(${current_shift} - ${another_shift})]
-                dbg_puts "      diff shifts: ${diff}"
+                dbg_puts "        diff shifts: ${diff}"
                 if { ${diff} == 0 } {
                   set cnt_cycles 1
                 } else {
                   set cnt_cycles [expr (${diff}/360) + 2]
                 }
-                dbg_puts "      count of cycles: ${cnt_cycles}"
-                set start_name "*_${prefix}_${current_shift}"
-                set end_name   "*_${prefix}_${another_shift}"
+                dbg_puts "        count of cycles: ${cnt_cycles}"
+                set start_name "*_${prefix}_${sign_current_shift}[format %0.4u [expr abs(${current_shift})]]"
+                set end_name   "*_${prefix}_${sign_another_shift}[format %0.4u [expr abs(${another_shift})]]"
                 set strigns [lappend strigns "
 set_multicycle_path ${cnt_cycles} -setup -from \[get_clocks ${start_name}\] -to \[get_clocks ${end_name}\]
 set_multicycle_path [expr ${cnt_cycles}-1] -hold -from \[get_clocks ${start_name}\] -to \[get_clocks ${end_name}\]"]
