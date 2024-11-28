@@ -32,7 +32,7 @@
 #.xcix: https://www.xilinx.com/support/documentation/sw_manuals/xilinx2016_2/ug896-vivado-ip.pdf (Page 41)
 !*.xcix
 #*.dcp(checkpoint files)
-!*.dcp
+*.dcp
 !*.vds
 !*.pb
 #All bd comments and layout coordinates are stored within .ui
@@ -74,7 +74,8 @@
 #########
 #Journal - files
 #########
-!*.jou
+*.jou
+*.log
 #########
 #Reports
 #########
@@ -89,4 +90,8 @@
 !*.elf
 !*.bmm
 !*.xmp
-
+#########
+#Users
+#########
+.Xil/
+clockInfo.txt
