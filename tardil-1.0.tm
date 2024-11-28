@@ -999,6 +999,26 @@ proc ::tardil::generate_with_multicycle {args} {
     variable max_multicycle_path
     dbg_puts [info level 0]
 
+    set options {
+    }
+    set usage ": [lindex [info level 0] 0] \[path_for_save_file\] \noptions:"
+    array set params [::cmdline::getoptions args ${options} ${usage}]
+    if {[lsearch -regexp ${args} {-.*}] > -1} {
+        error [::cmdline::usage ${options} ${usage}]
+    } else {
+        dbg_puts "Prams: [array get params]"
+    }
+    if {[llength ${args}] == 1} {
+        set file_name [lindex ${args} 0]
+    }
+    set args [lreplace ${args} 0 0]
+    if {[llength ${args}] != 0} {
+        dbg_puts "args: ${args}"
+        error [::cmdline::usage ${options} ${usage}]
+    }
+    dbg_puts "Parameters resolved"
+
+
     set strings [list]
 
     set clocks [lsort -uniq [get_clocks -regexp "(.*)_${prefix}_(n|p)\[0-9]*"]]
@@ -1166,7 +1186,16 @@ set_multicycle_path [expr ${cnt_cycles}-1] -hold -from \[get_clocks {${start_nam
         }
     }
 
-    return [join ${strigns}]
+    set file_data [join ${strigns}]
+    if { [info exist file_name] } {
+        set outfile [open ${file_name} w]
+        puts ${outfile} ${file_data}
+        close ${outfile}
+        dbg_puts "Constraints were written to file: ${file_name}"
+        return
+    } else {
+        return ${file_data}
+    }
 }
 
 #set ::tardil::debug 99
