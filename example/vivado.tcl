@@ -80,6 +80,7 @@ synth_design \
 opt_design
 
 report_timing_summary \
+  -quiet \
   -delay_type min_max \
   -report_unconstrained \
   -check_timing_verbose \
@@ -103,21 +104,17 @@ place_design
 phys_opt_design -directive ExploreWithHoldFix
 route_design
 
-write_checkpoint ./impl.dcp -force
-
 report_timing_summary \
   -delay_type min_max \
   -report_unconstrained \
   -check_timing_verbose \
   -max_paths 10 \
   -input_pins \
+  -name "Routed after Extended Useful Skew" \
   -rpx ./timing_impl_after_extended_useful_skew.rpx
 
-#start_gui
+open_report -name "Syn before Extended Useful Skew" ./timing_syn_before_extended_useful_skew.rpx
+open_report -name "Routed after Extended Useful Skew" ./timing_impl_after_extended_useful_skew.rpx
 
-open_report -name "Syn before Extended Useful Skew" \
-    ./timing_syn_before_extended_useful_skew.rpx
-
-open_report -name "Routed after Extended Useful Skew" \
-    ./timing_impl_after_extended_useful_skew.rpx
+write_checkpoint ./impl.dcp -force
 
