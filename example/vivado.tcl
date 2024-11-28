@@ -10,7 +10,7 @@ if { [current_project -quiet] != "" } {
   close_project
 }
 
-source ./tardil-1.0.tm
+source ../tardil-1.0.tm
 
 #set_part xc7k325tffg676-2
 set_part xcvu9p-flga2104-2L-e
@@ -113,7 +113,7 @@ report_timing_summary \
   -input_pins \
   -rpx ./timing_impl_after_extended_useful_skew.rpx
 
-start_gui
+#start_gui
 
 open_report -name "Syn before Extended Useful Skew" \
     ./timing_syn_before_extended_useful_skew.rpx
