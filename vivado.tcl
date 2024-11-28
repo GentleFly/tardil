@@ -10,6 +10,8 @@ if { [current_project -quiet] != "" } {
   close_project
 }
 
+source ./tardil-1.0.tm
+
 #set_part xc7k325tffg676-2
 set_part xcvu9p-flga2104-2L-e
 #set_part xcvu19p-fsvb3824-2-e
@@ -32,7 +34,6 @@ set constraints { \
 foreach f ${files} {
   read_verilog ${f}
 }
-
 foreach c ${constraints} {
   read_xdc -mode out_of_context ${c}
 }
@@ -84,11 +85,39 @@ report_timing_summary \
   -check_timing_verbose \
   -max_paths 10 \
   -input_pins \
-  -name timing_1
+  -rpx ./timing_syn_before_extended_useful_skew.rpx
+
 
 write_checkpoint ./syn.dcp -force
 
-# place_design
-# phys_opt_design -directive ExploreWithHoldFix
-# route_design
+tardil::resolve
+tardil::generate_with_multicycle ./generated_for_multicycle.tcl
+
+close_design
+read_checkpoint ./syn.dcp
+link_design
+
+read_xdc ./generated_for_multicycle.tcl
+
+place_design
+phys_opt_design -directive ExploreWithHoldFix
+route_design
+
+write_checkpoint ./impl.dcp -force
+
+report_timing_summary \
+  -delay_type min_max \
+  -report_unconstrained \
+  -check_timing_verbose \
+  -max_paths 10 \
+  -input_pins \
+  -rpx ./timing_impl_after_extended_useful_skew.rpx
+
+start_gui
+
+open_report -name "Syn before Extended Useful Skew" \
+    ./timing_syn_before_extended_useful_skew.rpx
+
+open_report -name "Routed after Extended Useful Skew" \
+    ./timing_impl_after_extended_useful_skew.rpx
 
