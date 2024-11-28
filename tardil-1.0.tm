@@ -1011,7 +1011,7 @@ set_clock_sense \\
         #}
     }
 
-    set file_data [join ${strigns}]
+    set file_data [join ${strigns} ""]
     if { [info exist file_name] } {
         set outfile [open ${file_name} w]
         puts ${outfile} ${file_data}
@@ -1215,7 +1215,7 @@ set_multicycle_path [expr ${cnt_cycles}-1] -hold -from \[get_clocks {${start_nam
         }
     }
 
-    set file_data [join ${strigns}]
+    set file_data [join ${strigns} ""]
     if { [info exist file_name] } {
         set outfile [open ${file_name} w]
         puts ${outfile} ${file_data}
