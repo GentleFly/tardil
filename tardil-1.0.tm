@@ -32,15 +32,11 @@ namespace eval tardil {
 proc ::tardil::dbg_puts {args} {
     variable debug
     if { ${debug} >= [expr [info level]-1] } {
-        array set inf [info frame -1]
-        #parray inf
-        #puts $inf(proc)
-
         set empty_prefix ""
         for {set i 0} {${i}<[expr [info level]-1]} {incr i} {
             set empty_prefix "  ${empty_prefix}"
         }
-        puts "${empty_prefix}\[$inf(proc)\] [lindex ${args} 0]"
+        puts "${empty_prefix}\[[lindex [info level -1] 0]\] [lindex ${args} 0]"
     }
 }
 
